@@ -27,6 +27,42 @@ app.MapPost("/webhook", async (HttpRequest req) =>
 
 `evt.Event` is a `JsonElement`. To bind it to your own classes, deserialize the same raw bytes with `System.Text.Json` after verifying.
 
+## Receiver
+
+Register a function per event type; the receiver verifies, routes, deduplicates and calls back. How it works, and how to store keys and transactions in production: [PROTOCOL.md](../PROTOCOL.md#the-receiver-and-where-to-store-things).
+
+```csharp
+// Read-only key store from configuration (env vars, appsettings, Key Vault via IConfiguration).
+sealed class ConfigKeys(IConfiguration config) : IKeyStore
+{
+    public ValueTask<IReadOnlyDictionary<string, string>> GetAsync(CancellationToken ct = default) =>
+        ValueTask.FromResult<IReadOnlyDictionary<string, string>>(
+            config.GetSection("Parspec:Keys").GetChildren().ToDictionary(k => k.Key, k => k.Value!));
+}
+
+var receiver = new Receiver(new ParspecClient(apiKey, environment: "sandbox"),
+        new ConfigKeys(builder.Configuration), myTransactions)   // ITransactionStore, e.g. Postgres or Redis
+    .On("tandemOrder.publishToErp", async (evt, ctx, ct) =>
+    {
+        var so = await erp.CreateSalesOrderAsync(evt.Event.GetProperty("data"), idempotencyKey: ctx.TransactionId, ct);
+        return new Dictionary<string, object?> { ["orderId"] = so.Id };   // throw to send an error callback
+    });
+
+var newKeys = await receiver.SubscribeAsync("https://erp.example/parspec/webhook");   // store these
+
+// ASP.NET Core: raw body, answer first, then process.
+app.MapPost("/parspec/webhook", async (HttpRequest req) =>
+{
+    using var ms = new MemoryStream();
+    await req.Body.CopyToAsync(ms);
+    var r = await receiver.AcceptAsync(ms.ToArray(), req.Headers["X-Signature"], req.Headers["Idempotency-Key"]);
+    _ = Task.Run(r.Process);   // or hand it to a background queue (IHostedService)
+    return Results.StatusCode(r.Status);
+});
+```
+
+`MemoryKeyStore` and `MemoryTransactionStore` are the in-memory versions for development. Implement `IWritableKeyStore` if `SubscribeAsync` should save keys itself. `onError` is called when a handler or callback fails.
+
 ## Use as a git submodule
 
 The `csharp` branch of this repo holds only this SDK, so it can be added to your project directly:
@@ -99,3 +135,57 @@ On failure, send `"EventStatus": "error"` with an `errorMessage`. PM shows that 
 | preprod | `https://uat-platform.parspec.io/platform-api/api/v1/` |
 
 Event types, versions and payloads: developer.parspec.io.
+
+## The receiver, and where to store things
+
+Each SDK has a receiver. You register one function per event type, and it handles each delivery:
+
+1. **Verify and route.** It finds the stored key that verifies the signature, which also identifies the event type, since several events can share one URL. No key verifies → 401.
+2. **Parse and claim.** It parses the envelope and claims the `eventTransactionID`. A body that isn't a PM event → 400. Already done, or claimed by another worker → 200 and nothing else.
+3. **Answer, then run.** It answers 200, then runs your function.
+4. **Call back once.** Your function's return value becomes the success callback. If it throws, the SDK sends an error callback with the message.
+5. **Settle the claim.** The transaction is marked done, or released so a redelivery retries. A failed callback also releases it.
+6. **Events without a function** get a plain acknowledgement.
+
+You decide where two kinds of state live. The SDK only needs a small interface for each.
+
+**Keys**
+- **Interface:** `get()` returns every event type's public key. An optional `set(eventType, key)` lets `subscribe()` save new keys.
+- **They aren't secret.** These are the *public* keys PM verifies with: anyone may read them, so env vars, a config file, a database row or a keychain are all fine. What must never leak is your API key, which the SDK only ever sends to PM.
+- **Update them on every subscribe.** Each subscribe mints a new key, so every server needs the new one.
+- **Read-only stores:** with env vars, omit `set()`. `subscribe()` returns the new keys, and you update the environment and restart.
+
+**Transactions (duplicate protection)**
+- **Interface:** `claim(txid)` atomically returns false when the transaction is done or another worker holds it; `done(txid)`; `release(txid)`.
+- **Shared and atomic.** In production this must be shared by every server and survive restarts. The in-memory store is for development only.
+- **Leases.** A claim that is never settled, because the worker died, must expire, so a redelivery can take it over. The in-memory stores use 15 minutes.
+
+PostgreSQL:
+
+```sql
+create table parspec_transactions (
+  txid text primary key,
+  status text not null,              -- 'processing' or 'done'
+  claimed_at timestamptz not null default now()
+);
+
+-- claim: true when a row comes back. Takes over a stale claim; never touches a done one.
+insert into parspec_transactions (txid, status) values ($1, 'processing')
+on conflict (txid) do update set claimed_at = now()
+  where parspec_transactions.status = 'processing'
+    and parspec_transactions.claimed_at < now() - interval '15 minutes'
+returning txid;
+
+-- done
+update parspec_transactions set status = 'done' where txid = $1;
+
+-- release
+delete from parspec_transactions where txid = $1 and status = 'processing';
+```
+
+Redis:
+- **claim:** `SET parspec:tx:<txid> processing NX PX 900000` returns `OK`. The expiry is the lease.
+- **done:** `SET parspec:tx:<txid> done EX 2592000`. Keep done ids for about as long as PM might redeliver; 30 days here.
+- **release:** `DEL parspec:tx:<txid>`.
+
+**Make handlers idempotent.** A redelivery after a failed callback runs your function again. Pass the context's transaction id to your ERP as its idempotency key, so the same event never creates two orders. Any order number you return must be the same on every run.

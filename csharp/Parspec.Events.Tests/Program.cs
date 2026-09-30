@@ -139,6 +139,69 @@ await Check("unsubscribe: an explicit version clears only that version", async (
     Assert(JsonNode.DeepEquals(handler.Calls[0].Body, JsonNode.Parse("{\"event_type\":\"quote.created\",\"event_version\":2}")), "body");
 });
 
+foreach (var c in Load("receiver.json"))
+{
+    await Check($"receiver: {c!["name"]}", async () =>
+    {
+        var statuses = (c["callbackResponses"]?.AsArray() ?? []).Select(x => JsonNode.Parse($"{{\"status\":{(int)x!},\"body\":{{}}}}")!).ToList();
+        var handler = new FakeHandler(statuses);
+        var client = new ParspecClient("k", baseUrl: Base, http: new HttpClient(handler));
+        var stores = new TestStores(c, fx);
+        var receiver = new Receiver(client, stores, stores);
+        var calls = new List<string>();
+        foreach (var (eventType, behaviours) in c["handlers"]!.AsObject())
+        {
+            var list = behaviours!.AsArray();
+            var n = 0;
+            receiver.On(eventType, (evt, ctx) =>
+            {
+                calls.Add($"{ctx.EventType}|{ctx.TransactionId}");
+                var b = list[Math.Min(n++, list.Count - 1)]!;
+                if (b["throw"] is JsonNode t) throw new InvalidOperationException((string)t!);
+                var ret = b["return"];
+                IDictionary<string, object?>? fields = ret is JsonObject o ? o.ToDictionary(kv => kv.Key, kv => (object?)kv.Value?.DeepClone()) : null;
+                return Task.FromResult(fields);
+            });
+        }
+        var got = new List<int>();
+        foreach (var d in c["deliveries"]!.AsArray())
+            got.Add(await receiver.HandleAsync(Encoding.UTF8.GetBytes((string)d!["body"]!), (string)d["signature"]!));
+        var exp = c["expect"]!;
+        var wantStatus = c["deliveries"]!.AsArray().Select(d => (int)d!["status"]!).ToList();
+        Assert(got.SequenceEqual(wantStatus), $"statuses {string.Join(",", got)}");
+        var wantCalls = exp["calls"]!.AsArray().Select(x => $"{x!["eventType"]}|{x["transactionId"]}").ToList();
+        Assert(calls.SequenceEqual(wantCalls), $"calls {string.Join(",", calls)}");
+        var sent = handler.Calls.Select(x => x.Body).ToList();
+        var wantCallbacks = exp["callbacks"]!.AsArray();
+        Assert(sent.Count == wantCallbacks.Count && sent.Zip(wantCallbacks).All(p => JsonNode.DeepEquals(p.First, p.Second)), $"callbacks {string.Join(" ", sent)}");
+        Assert(stores.Done.OrderBy(x => x).SequenceEqual(exp["done"]!.AsArray().Select(x => (string)x!).OrderBy(x => x)), "done");
+        Assert(stores.Processing.OrderBy(x => x).SequenceEqual(exp["processing"]!.AsArray().Select(x => (string)x!).OrderBy(x => x)), "processing");
+    });
+}
+
+await Check("receiver: subscribe saves keys to a writable store and returns them", async () =>
+{
+    var handler = new FakeHandler([
+        JsonNode.Parse("{\"status\":200,\"body\":{}}")!, JsonNode.Parse("{\"status\":200,\"body\":{}}")!, JsonNode.Parse("{\"status\":200,\"body\":{\"publicKey\":\"KEY-A\"}}")!]);
+    var keys = new MemoryKeyStore();
+    var receiver = new Receiver(new ParspecClient("k", baseUrl: Base, http: new HttpClient(handler)), keys)
+        .On("inventory.fetchPrice", (e, c) => Task.FromResult<IDictionary<string, object?>?>(null), version: 2);
+    var minted = await receiver.SubscribeAsync("https://erp.example/hook");
+    Assert(minted["inventory.fetchPrice"] == "KEY-A", "returned");
+    Assert((await keys.GetAsync())["inventory.fetchPrice"] == "KEY-A", "saved");
+    Assert((int)handler.Calls[2].Body!["event_version"]! == 2, "version");
+});
+
+await Check("receiver: MemoryTransactionStore claims once and expires stale claims", async () =>
+{
+    var t = new MemoryTransactionStore(TimeSpan.FromMilliseconds(20));
+    Assert(await t.ClaimAsync("a") && !await t.ClaimAsync("a"), "claim once");
+    await Task.Delay(40);
+    Assert(await t.ClaimAsync("a"), "stale claim taken over");
+    await t.DoneAsync("a");
+    Assert(!await t.ClaimAsync("a"), "done");
+});
+
 Console.WriteLine($"{pass} passed, {fail} failed");
 return fail == 0 ? 0 : 1;
 
@@ -166,4 +229,24 @@ class HangingHandler : HttpMessageHandler
         await Task.Delay(Timeout.Infinite, ct);
         throw new InvalidOperationException("unreachable");
     }
+}
+
+// A store the test writes itself, as a developer would: read-only keys (like env vars) and a transaction set.
+class TestStores : IKeyStore, ITransactionStore
+{
+    readonly Dictionary<string, string> _keys;
+    public HashSet<string> Processing { get; }
+    public HashSet<string> Done { get; }
+
+    public TestStores(JsonNode c, string fx)
+    {
+        _keys = c["keys"]!.AsObject().ToDictionary(kv => kv.Key, kv => File.ReadAllText(Path.Combine(fx, "keys", (string)kv.Value!)));
+        Processing = (c["processing"]?.AsArray() ?? []).Select(x => (string)x!).ToHashSet();
+        Done = (c["done"]?.AsArray() ?? []).Select(x => (string)x!).ToHashSet();
+    }
+
+    public ValueTask<IReadOnlyDictionary<string, string>> GetAsync(CancellationToken ct = default) => ValueTask.FromResult<IReadOnlyDictionary<string, string>>(_keys);
+    public ValueTask<bool> ClaimAsync(string t, CancellationToken ct = default) => ValueTask.FromResult(!Processing.Contains(t) && !Done.Contains(t) && Processing.Add(t));
+    public ValueTask DoneAsync(string t, CancellationToken ct = default) { Processing.Remove(t); Done.Add(t); return ValueTask.CompletedTask; }
+    public ValueTask ReleaseAsync(string t, CancellationToken ct = default) { Processing.Remove(t); return ValueTask.CompletedTask; }
 }

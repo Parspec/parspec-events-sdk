@@ -27,6 +27,42 @@ app.MapPost("/webhook", async (HttpRequest req) =>
 
 `evt.Event` is a `JsonElement`. To bind it to your own classes, deserialize the same raw bytes with `System.Text.Json` after verifying.
 
+## Receiver
+
+Register a function per event type; the receiver verifies, routes, deduplicates and calls back. How it works, and how to store keys and transactions in production: [PROTOCOL.md](../PROTOCOL.md#the-receiver-and-where-to-store-things).
+
+```csharp
+// Read-only key store from configuration (env vars, appsettings, Key Vault via IConfiguration).
+sealed class ConfigKeys(IConfiguration config) : IKeyStore
+{
+    public ValueTask<IReadOnlyDictionary<string, string>> GetAsync(CancellationToken ct = default) =>
+        ValueTask.FromResult<IReadOnlyDictionary<string, string>>(
+            config.GetSection("Parspec:Keys").GetChildren().ToDictionary(k => k.Key, k => k.Value!));
+}
+
+var receiver = new Receiver(new ParspecClient(apiKey, environment: "sandbox"),
+        new ConfigKeys(builder.Configuration), myTransactions)   // ITransactionStore, e.g. Postgres or Redis
+    .On("tandemOrder.publishToErp", async (evt, ctx, ct) =>
+    {
+        var so = await erp.CreateSalesOrderAsync(evt.Event.GetProperty("data"), idempotencyKey: ctx.TransactionId, ct);
+        return new Dictionary<string, object?> { ["orderId"] = so.Id };   // throw to send an error callback
+    });
+
+var newKeys = await receiver.SubscribeAsync("https://erp.example/parspec/webhook");   // store these
+
+// ASP.NET Core: raw body, answer first, then process.
+app.MapPost("/parspec/webhook", async (HttpRequest req) =>
+{
+    using var ms = new MemoryStream();
+    await req.Body.CopyToAsync(ms);
+    var r = await receiver.AcceptAsync(ms.ToArray(), req.Headers["X-Signature"], req.Headers["Idempotency-Key"]);
+    _ = Task.Run(r.Process);   // or hand it to a background queue (IHostedService)
+    return Results.StatusCode(r.Status);
+});
+```
+
+`MemoryKeyStore` and `MemoryTransactionStore` are the in-memory versions for development. Implement `IWritableKeyStore` if `SubscribeAsync` should save keys itself. `onError` is called when a handler or callback fails.
+
 ## Use as a git submodule
 
 The `csharp` branch of this repo holds only this SDK, so it can be added to your project directly:
