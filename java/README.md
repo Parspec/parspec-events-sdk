@@ -26,6 +26,33 @@ public ResponseEntity<Void> webhook(@RequestBody byte[] body,
 
 `evt.event()` is the parsed envelope as maps and lists. To bind it to your own classes, parse `body` again with Jackson after verifying. To use your own HTTP client, pass a `ParspecClient.Transport`.
 
+## Receiver
+
+Register a function per event type; the receiver verifies, routes, deduplicates and calls back. How it works, and how to store keys and transactions in production: [PROTOCOL.md](../PROTOCOL.md#the-receiver-and-where-to-store-things).
+
+```java
+Receiver.KeyStore envKeys = () -> parseJson(System.getenv("PARSPEC_KEYS"));   // read-only: env vars
+Receiver receiver = new Receiver(new ParspecClient(apiKey, "sandbox"), envKeys, myTransactions, null)   // TransactionStore: Postgres, Redis
+    .on("tandemOrder.publishToErp", (event, ctx) -> {
+        String orderId = erp.createSalesOrder(event.event().get("data"), ctx.transactionId());   // idempotency key
+        return Map.of("orderId", orderId);   // throw to send an error callback
+    });
+
+Map<String, String> newKeys = receiver.subscribe("https://erp.example/parspec/webhook");   // store these
+
+// Spring Boot: raw body, answer first, then process.
+@PostMapping("/parspec/webhook")
+public ResponseEntity<Void> webhook(@RequestBody byte[] body,
+                                    @RequestHeader(value = "X-Signature", required = false) String sig,
+                                    @RequestHeader(value = "Idempotency-Key", required = false) String idem) {
+    Receiver.Accepted r = receiver.accept(body, sig, idem);
+    executor.execute(r.process());   // a TaskExecutor or @Async
+    return ResponseEntity.status(r.status()).build();
+}
+```
+
+`Receiver.MemoryKeyStore` and `Receiver.MemoryTransactionStore` are the in-memory versions for development. Implement `WritableKeyStore` if `subscribe()` should save keys itself. The receiver is thread-safe to share once its handlers are registered.
+
 ## Use as a git submodule
 
 The `java` branch of this repo holds only this SDK, so it can be added to your project directly:

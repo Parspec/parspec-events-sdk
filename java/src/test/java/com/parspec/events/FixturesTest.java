@@ -163,7 +163,81 @@ public final class FixturesTest {
             } finally { java.util.Locale.setDefault(prev); }
         });
 
+        for (Map<String, Object> c : load("receiver.json")) {
+            check("receiver: " + c.get("name"), () -> {
+                List<Map<String, Object>> responses = new ArrayList<>();
+                for (Object st : (List<Object>) c.getOrDefault("callbackResponses", List.of())) responses.add(Map.of("status", st, "body", Map.of()));
+                List<Call> sent = new ArrayList<>();
+                ParspecClient client = new ParspecClient("k", BASE, fake(sent, responses));
+                TestStores stores = new TestStores(c);
+                Receiver receiver = new Receiver(client, stores, stores, null);
+                List<String> calls = new ArrayList<>();
+                for (Map.Entry<String, Object> h : ((Map<String, Object>) c.get("handlers")).entrySet()) {
+                    List<Map<String, Object>> behaviours = (List<Map<String, Object>>) h.getValue();
+                    int[] n = { 0 };
+                    receiver.on(h.getKey(), (evt, ctx) -> {
+                        calls.add(ctx.eventType() + "|" + ctx.transactionId());
+                        Map<String, Object> b = behaviours.get(Math.min(n[0]++, behaviours.size() - 1));
+                        if (b.containsKey("throw")) throw new IllegalStateException((String) b.get("throw"));
+                        return (Map<String, Object>) b.get("return");
+                    });
+                }
+                List<Object> got = new ArrayList<>(), want = new ArrayList<>();
+                for (Map<String, Object> d : (List<Map<String, Object>>) c.get("deliveries")) {
+                    got.add((long) receiver.handle(((String) d.get("body")).getBytes(StandardCharsets.UTF_8), (String) d.get("signature"), null));
+                    want.add(d.get("status"));
+                }
+                Map<String, Object> exp = (Map<String, Object>) c.get("expect");
+                require(got.equals(want), "statuses " + got);
+                List<String> wantCalls = new ArrayList<>();
+                for (Map<String, Object> x : (List<Map<String, Object>>) exp.get("calls")) wantCalls.add(x.get("eventType") + "|" + x.get("transactionId"));
+                require(calls.equals(wantCalls), "calls " + calls);
+                List<Object> bodies = new ArrayList<>();
+                for (Call x : sent) bodies.add(x.body());
+                require(bodies.equals(exp.get("callbacks")), "callbacks " + bodies);
+                require(new java.util.TreeSet<>(stores.done).equals(new java.util.TreeSet<>((List<String>) exp.get("done"))), "done " + stores.done);
+                require(new java.util.TreeSet<>(stores.processing).equals(new java.util.TreeSet<>((List<String>) exp.get("processing"))), "processing " + stores.processing);
+            });
+        }
+        check("receiver: subscribe saves keys to a writable store and returns them", () -> {
+            List<Call> sent = new ArrayList<>();
+            List<Map<String, Object>> responses = List.of(Map.of("status", 200L, "body", Map.of()), Map.of("status", 200L, "body", Map.of()),
+                Map.of("status", 200L, "body", Map.of("publicKey", "KEY-A")));
+            Receiver.MemoryKeyStore keys = new Receiver.MemoryKeyStore();
+            Receiver receiver = new Receiver(new ParspecClient("k", BASE, fake(sent, responses)), keys, null, null)
+                .on("inventory.fetchPrice", (e, ctx) -> null, 2);
+            require(Map.of("inventory.fetchPrice", "KEY-A").equals(receiver.subscribe("https://erp.example/hook")), "returned");
+            require("KEY-A".equals(keys.get().get("inventory.fetchPrice")), "saved");
+            require(Long.valueOf(2).equals(((Map<String, Object>) sent.get(2).body()).get("event_version")), "version");
+        });
+        check("receiver: MemoryTransactionStore claims once and expires stale claims", () -> {
+            Receiver.MemoryTransactionStore t = new Receiver.MemoryTransactionStore(java.time.Duration.ofMillis(20));
+            require(t.claim("a") && !t.claim("a"), "claim once");
+            Thread.sleep(40);
+            require(t.claim("a"), "stale claim taken over");
+            t.done("a");
+            require(!t.claim("a"), "done");
+        });
+
         System.out.println(pass + " passed, " + fail + " failed");
         System.exit(fail == 0 ? 0 : 1);
+    }
+
+    // A store the test writes itself, as a developer would: read-only keys (like env vars) and a transaction set.
+    static final class TestStores implements Receiver.KeyStore, Receiver.TransactionStore {
+        final Map<String, String> keys = new java.util.HashMap<>();
+        final java.util.Set<String> processing = new java.util.HashSet<>(), done = new java.util.HashSet<>();
+
+        TestStores(Map<String, Object> c) throws java.io.IOException {
+            for (Map.Entry<String, Object> e : ((Map<String, Object>) c.get("keys")).entrySet())
+                keys.put(e.getKey(), Files.readString(FX.resolve("keys").resolve((String) e.getValue())));
+            processing.addAll((List<String>) c.getOrDefault("processing", List.of()));
+            done.addAll((List<String>) c.getOrDefault("done", List.of()));
+        }
+
+        @Override public Map<String, String> get() { return keys; }
+        @Override public boolean claim(String t) { return !processing.contains(t) && !done.contains(t) && processing.add(t); }
+        @Override public void done(String t) { processing.remove(t); done.add(t); }
+        @Override public void release(String t) { processing.remove(t); }
     }
 }

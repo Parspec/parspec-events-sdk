@@ -3,7 +3,7 @@
     "name": "success with order ids",
     "call": "success",
     "event": {
-      "eventTransactionID": "578b808b-9930-47b2-a377-87a0fcd84478",
+      "eventTransactionID": "57678573-e34f-4c99-b3bd-f79b5b498718",
       "callback_url": "integrations/events/callback"
     },
     "fields": {
@@ -14,7 +14,7 @@
       "method": "POST",
       "url": "https://pm.example/platform-api/api/v1/integrations/events/callback",
       "body": {
-        "EventTransactionID": "578b808b-9930-47b2-a377-87a0fcd84478",
+        "EventTransactionID": "57678573-e34f-4c99-b3bd-f79b5b498718",
         "EventStatus": "success",
         "orderId": "SO-123",
         "projectErpId": "PRJ-1"
@@ -25,7 +25,7 @@
     "name": "plain acknowledgement",
     "call": "success",
     "event": {
-      "eventTransactionID": "578b808b-9930-47b2-a377-87a0fcd84478",
+      "eventTransactionID": "57678573-e34f-4c99-b3bd-f79b5b498718",
       "callback_url": "integrations/events/callback"
     },
     "fields": {},
@@ -33,7 +33,7 @@
       "method": "POST",
       "url": "https://pm.example/platform-api/api/v1/integrations/events/callback",
       "body": {
-        "EventTransactionID": "578b808b-9930-47b2-a377-87a0fcd84478",
+        "EventTransactionID": "57678573-e34f-4c99-b3bd-f79b5b498718",
         "EventStatus": "success"
       }
     }
@@ -42,7 +42,7 @@
     "name": "error with message (shown to the PM user)",
     "call": "error",
     "event": {
-      "eventTransactionID": "578b808b-9930-47b2-a377-87a0fcd84478",
+      "eventTransactionID": "57678573-e34f-4c99-b3bd-f79b5b498718",
       "callback_url": "integrations/events/callback"
     },
     "message": "Credit check failed for customer C-42",
@@ -50,7 +50,7 @@
       "method": "POST",
       "url": "https://pm.example/platform-api/api/v1/integrations/events/callback",
       "body": {
-        "EventTransactionID": "578b808b-9930-47b2-a377-87a0fcd84478",
+        "EventTransactionID": "57678573-e34f-4c99-b3bd-f79b5b498718",
         "EventStatus": "error",
         "errorMessage": "Credit check failed for customer C-42"
       }
@@ -60,14 +60,14 @@
     "name": "missing callback_url falls back to the default path",
     "call": "success",
     "event": {
-      "eventTransactionID": "578b808b-9930-47b2-a377-87a0fcd84478"
+      "eventTransactionID": "57678573-e34f-4c99-b3bd-f79b5b498718"
     },
     "fields": {},
     "expect": {
       "method": "POST",
       "url": "https://pm.example/platform-api/api/v1/integrations/events/callback",
       "body": {
-        "EventTransactionID": "578b808b-9930-47b2-a377-87a0fcd84478",
+        "EventTransactionID": "57678573-e34f-4c99-b3bd-f79b5b498718",
         "EventStatus": "success"
       }
     }
@@ -76,7 +76,7 @@
     "name": "absolute callback_url on the PM host is used",
     "call": "success",
     "event": {
-      "eventTransactionID": "578b808b-9930-47b2-a377-87a0fcd84478",
+      "eventTransactionID": "57678573-e34f-4c99-b3bd-f79b5b498718",
       "callback_url": "https://pm.example/platform-api/api/v1/custom/callback"
     },
     "fields": {},
@@ -84,7 +84,7 @@
       "method": "POST",
       "url": "https://pm.example/platform-api/api/v1/custom/callback",
       "body": {
-        "EventTransactionID": "578b808b-9930-47b2-a377-87a0fcd84478",
+        "EventTransactionID": "57678573-e34f-4c99-b3bd-f79b5b498718",
         "EventStatus": "success"
       }
     }
@@ -93,7 +93,7 @@
     "name": "absolute callback_url on another host is refused, nothing sent",
     "call": "success",
     "event": {
-      "eventTransactionID": "578b808b-9930-47b2-a377-87a0fcd84478",
+      "eventTransactionID": "57678573-e34f-4c99-b3bd-f79b5b498718",
       "callback_url": "https://callbacks.example/hook"
     },
     "fields": {},
@@ -105,7 +105,7 @@
     "name": "absolute callback_url with an upper-case scheme on another host is refused",
     "call": "success",
     "event": {
-      "eventTransactionID": "578b808b-9930-47b2-a377-87a0fcd84478",
+      "eventTransactionID": "57678573-e34f-4c99-b3bd-f79b5b498718",
       "callback_url": "HTTPS://callbacks.example/hook"
     },
     "fields": {},
@@ -117,7 +117,7 @@
     "name": "fields cannot override EventTransactionID or EventStatus",
     "call": "success",
     "event": {
-      "eventTransactionID": "578b808b-9930-47b2-a377-87a0fcd84478",
+      "eventTransactionID": "57678573-e34f-4c99-b3bd-f79b5b498718",
       "callback_url": "integrations/events/callback"
     },
     "fields": {
@@ -129,7 +129,7 @@
       "method": "POST",
       "url": "https://pm.example/platform-api/api/v1/integrations/events/callback",
       "body": {
-        "EventTransactionID": "578b808b-9930-47b2-a377-87a0fcd84478",
+        "EventTransactionID": "57678573-e34f-4c99-b3bd-f79b5b498718",
         "EventStatus": "success",
         "orderId": "SO-1"
       }
@@ -139,7 +139,7 @@
     "name": "callback rejected with 400 raises with the status",
     "call": "success",
     "event": {
-      "eventTransactionID": "578b808b-9930-47b2-a377-87a0fcd84478",
+      "eventTransactionID": "57678573-e34f-4c99-b3bd-f79b5b498718",
       "callback_url": "integrations/events/callback"
     },
     "fields": {},
@@ -153,7 +153,7 @@
       "method": "POST",
       "url": "https://pm.example/platform-api/api/v1/integrations/events/callback",
       "body": {
-        "EventTransactionID": "578b808b-9930-47b2-a377-87a0fcd84478",
+        "EventTransactionID": "57678573-e34f-4c99-b3bd-f79b5b498718",
         "EventStatus": "success"
       },
       "error": 400
@@ -163,7 +163,7 @@
     "name": "network failure raises the SDK error with status 0",
     "call": "success",
     "event": {
-      "eventTransactionID": "578b808b-9930-47b2-a377-87a0fcd84478",
+      "eventTransactionID": "57678573-e34f-4c99-b3bd-f79b5b498718",
       "callback_url": "integrations/events/callback"
     },
     "fields": {},
@@ -174,7 +174,7 @@
       "method": "POST",
       "url": "https://pm.example/platform-api/api/v1/integrations/events/callback",
       "body": {
-        "EventTransactionID": "578b808b-9930-47b2-a377-87a0fcd84478",
+        "EventTransactionID": "57678573-e34f-4c99-b3bd-f79b5b498718",
         "EventStatus": "success"
       },
       "error": 0
@@ -184,7 +184,7 @@
     "name": "rejected callback raises with the status",
     "call": "success",
     "event": {
-      "eventTransactionID": "578b808b-9930-47b2-a377-87a0fcd84478",
+      "eventTransactionID": "57678573-e34f-4c99-b3bd-f79b5b498718",
       "callback_url": "integrations/events/callback"
     },
     "fields": {},
@@ -198,7 +198,7 @@
       "method": "POST",
       "url": "https://pm.example/platform-api/api/v1/integrations/events/callback",
       "body": {
-        "EventTransactionID": "578b808b-9930-47b2-a377-87a0fcd84478",
+        "EventTransactionID": "57678573-e34f-4c99-b3bd-f79b5b498718",
         "EventStatus": "success"
       },
       "error": 500
