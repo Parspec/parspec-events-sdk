@@ -44,12 +44,13 @@ public final class ParspecClient {
 
     public ParspecClient(String apiKey, String environment) { this(apiKey, ENVIRONMENTS.get(environment), defaultTransport()); }
 
+    // transport may be null for the built-in java.net.http client (e.g. a custom baseUrl only).
     public ParspecClient(String apiKey, String baseUrl, Transport transport) {
         if (apiKey == null || apiKey.isEmpty()) throw new IllegalArgumentException("apiKey is required");
         if (baseUrl == null) throw new IllegalArgumentException("unknown environment");
         this.apiKey = apiKey;
         this.base = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
-        this.transport = transport;
+        this.transport = transport == null ? defaultTransport() : transport;
     }
 
     private static Transport defaultTransport() {

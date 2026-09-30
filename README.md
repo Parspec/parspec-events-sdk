@@ -26,6 +26,18 @@ public ResponseEntity<Void> webhook(@RequestBody byte[] body,
 
 `evt.event()` is the parsed envelope as maps and lists. To bind it to your own classes, parse `body` again with Jackson after verifying. To use your own HTTP client, pass a `ParspecClient.Transport`.
 
+## Use as a git submodule
+
+The `java` branch of this repo holds only this SDK, so it can be added to your project directly:
+
+```
+git submodule add -b java <repo-url> vendor/parspec-events
+```
+
+Then add `vendor/parspec-events/java/src/main/java` as a source folder: the `build-helper-maven-plugin` `add-source` goal in Maven, or `sourceSets.main.java.srcDir 'vendor/parspec-events/java/src/main/java'` in Gradle.
+
+Pull updates with `git submodule update --remote`. Your project stays on the commit it has until you do.
+
 ## Tests
 
 ```

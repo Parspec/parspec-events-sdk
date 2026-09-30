@@ -61,13 +61,19 @@ public final class FixturesTest {
         for (Map<String, Object> c : load("callbacks.json")) {
             check("callback: " + c.get("name"), () -> {
                 List<Call> calls = new ArrayList<>();
-                ParspecClient client = new ParspecClient("k", BASE, fake(calls, List.of()));
+                List<Map<String, Object>> responses = c.containsKey("response") ? List.of((Map<String, Object>) c.get("response")) : List.of();
+                ParspecClient client = new ParspecClient("k", BASE, fake(calls, responses));
                 Map<String, Object> evt = (Map<String, Object>) c.get("event");
                 String txid = (String) evt.get("eventTransactionID");
                 String cb = (String) evt.get("callback_url");
-                if ("error".equals(c.get("call"))) client.fail(txid, cb, (String) c.get("message"));
-                else client.callback(txid, cb, (Map<String, Object>) c.get("fields"));
                 Map<String, Object> exp = (Map<String, Object>) c.get("expect");
+                int status = 0;
+                try {
+                    if ("error".equals(c.get("call"))) client.fail(txid, cb, (String) c.get("message"));
+                    else client.callback(txid, cb, (Map<String, Object>) c.get("fields"));
+                } catch (ParspecClient.ParspecApiException e) { status = e.status(); }
+                int wantStatus = exp.containsKey("error") ? ((Long) exp.get("error")).intValue() : 0;
+                require(status == wantStatus, "expected error status " + wantStatus + ", got " + status);
                 require(calls.size() == 1, "one request");
                 Call got = calls.get(0);
                 require(got.method().equals(exp.get("method")), "method " + got.method());
