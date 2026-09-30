@@ -75,6 +75,20 @@ const callbacks = [
     call: 'success', event: { eventTransactionID: txid }, fields: {},
     expect: { method: 'POST', url: 'https://pm.example/platform-api/api/v1/integrations/events/callback',
       body: { EventTransactionID: txid, EventStatus: 'success' } }
+  },
+  {
+    name: 'absolute callback_url is used as-is',
+    call: 'success', event: { eventTransactionID: txid, callback_url: 'https://callbacks.example/hook' }, fields: {},
+    expect: { method: 'POST', url: 'https://callbacks.example/hook',
+      body: { EventTransactionID: txid, EventStatus: 'success' } }
+  },
+  {
+    // `response` is what the fake server returns; `expect.error` is the status the SDK must raise with.
+    name: 'rejected callback raises with the status',
+    call: 'success', event: evt, fields: {},
+    response: { status: 500, body: { error: 'internal' } },
+    expect: { method: 'POST', url: 'https://pm.example/platform-api/api/v1/integrations/events/callback',
+      body: { EventTransactionID: txid, EventStatus: 'success' }, error: 500 }
   }
 ];
 fs.writeFileSync(path.join(dir, 'callbacks.json'), JSON.stringify(callbacks, null, 2) + '\n');

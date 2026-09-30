@@ -20,6 +20,17 @@ In Express, use `express.raw({ type: 'application/json' })` on the webhook route
 
 A runnable receiver is in `example-server.js`.
 
+## Use as a git submodule
+
+The `node` branch of this repo holds only this SDK, so it can be added to your project directly:
+
+```
+git submodule add -b node <repo-url> vendor/parspec-events
+npm install ./vendor/parspec-events/node
+```
+
+Pull updates with `git submodule update --remote`. Your project stays on the commit it has until you do.
+
 ## Tests
 
 ```
