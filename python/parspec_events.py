@@ -186,3 +186,152 @@ class Client:
     def fail(self, event: Mapping[str, Any], message: str, fields: Optional[Mapping[str, Any]] = None) -> Any:
         """Send an error callback. The message is shown to the PM user (e.g. a failed credit check)."""
         return self._send_callback(event, "error", {**(fields or {}), "errorMessage": message})
+
+
+# ---- Receiver: register a function per event type; the SDK verifies, routes, dedupes and calls back ----
+#
+# Storage is yours. Two small interfaces:
+#   keys:         get() -> {event_type: public_key_pem}  and, optionally, set(event_type, public_key_pem)
+#                 (env vars, a keychain, a secrets manager, a file; leave out set() when keys are read-only)
+#   transactions: claim(txid) -> bool (atomically: False when done or in progress), done(txid), release(txid)
+#                 (a database row or Redis SET NX in production, so it survives restarts and spans servers)
+# MemoryKeys and MemoryTransactions are the in-process versions, for development.
+
+
+class MemoryKeys:
+    def __init__(self, initial: Optional[Mapping[str, str]] = None) -> None:
+        self._keys = dict(initial or {})
+
+    def get(self) -> dict:
+        return dict(self._keys)
+
+    def set(self, event_type: str, public_key: str) -> None:
+        self._keys[event_type] = public_key
+
+
+class MemoryTransactions:
+    """lease_seconds: a claim older than this counts as abandoned (the worker died), so a redelivery can take it."""
+
+    def __init__(self, lease_seconds: float = 15 * 60) -> None:
+        import threading
+        import time
+
+        self._now = time.monotonic
+        self._lease = lease_seconds
+        self._lock = threading.Lock()
+        self._processing: dict = {}
+        self._done: set = set()
+
+    def claim(self, txid: str) -> bool:
+        with self._lock:
+            if txid in self._done:
+                return False
+            at = self._processing.get(txid)
+            if at is not None and self._now() - at < self._lease:
+                return False
+            self._processing[txid] = self._now()
+            return True
+
+    def done(self, txid: str) -> None:
+        with self._lock:
+            self._processing.pop(txid, None)
+            self._done.add(txid)
+
+    def release(self, txid: str) -> None:
+        with self._lock:
+            self._processing.pop(txid, None)
+
+
+class Accepted:
+    """The result of Receiver.accept(): answer PM with `status` now, then call process()."""
+
+    def __init__(self, status: int, process: Callable[[], None] = lambda: None, event_type: Optional[str] = None,
+                 transaction_id: Optional[str] = None, duplicate: bool = False) -> None:
+        self.status = status
+        self.process = process
+        self.event_type = event_type
+        self.transaction_id = transaction_id
+        self.duplicate = duplicate
+
+
+class Receiver:
+    """Register a function per event type; verifies, routes, deduplicates and sends the callback."""
+
+    def __init__(self, client: Client, keys: Any = None, transactions: Any = None,
+                 on_error: Optional[Callable[[BaseException, dict], None]] = None) -> None:
+        self._client = client
+        self._keys = keys if keys is not None else MemoryKeys()
+        self._transactions = transactions if transactions is not None else MemoryTransactions()
+        self._on_error = on_error or (lambda e, ctx: None)
+        self._handlers: dict = {}
+
+    def on(self, event_type: str, handler: Optional[Callable] = None, version: int = 1) -> Any:
+        """Register handler(event, ctx) -> callback fields (or None, for a plain acknowledgement).
+
+        Raising sends an error callback with the message, which PM shows to the user.
+        Works as a call, receiver.on("x", fn), or as a decorator, @receiver.on("x").
+        """
+        if handler is None:
+            def decorate(fn: Callable) -> Callable:
+                self._handlers[event_type] = (fn, version)
+                return fn
+            return decorate
+        self._handlers[event_type] = (handler, version)
+        return self
+
+    def subscribe(self, webhook_url: str) -> dict:
+        """Subscribe every registered event. Each new key goes to keys.set() when the store has one,
+        and all of them are returned, for stores you manage yourself."""
+        minted = {}
+        for event_type, (_, version) in self._handlers.items():
+            minted[event_type] = self._client.subscribe(event_type, version, webhook_url)["publicKey"]
+            if hasattr(self._keys, "set"):
+                self._keys.set(event_type, minted[event_type])
+        return minted
+
+    def accept(self, raw_body: bytes, headers: Optional[Mapping[str, str]]) -> Accepted:
+        """Phase 1, fast: verify, parse, claim."""
+        stored = self._keys.get() or {}
+        signature = _header(headers, "x-signature")
+        match = next(((t, k) for t, k in stored.items() if verify(raw_body, signature, k)), None)
+        if match is None:
+            return Accepted(401)
+        event_type, key = match
+        try:
+            parsed = parse_event(raw_body, headers, key)
+        except EventError:
+            return Accepted(400)
+        txid = parsed["transaction_id"]
+        if not self._transactions.claim(txid):
+            return Accepted(200, event_type=event_type, transaction_id=txid, duplicate=True)
+        ctx = {"event_type": event_type, "transaction_id": txid, "idempotency_key": parsed["idempotency_key"]}
+        return Accepted(200, lambda: self._run(parsed["event"], ctx), event_type, txid)
+
+    def _run(self, event: dict, ctx: dict) -> None:
+        """Phase 2: the handler, one callback, and the claim settled (done, or released so a redelivery retries)."""
+        registered = self._handlers.get(ctx["event_type"])
+        fields, failure = None, None
+        try:
+            fields = registered[0](event, ctx) if registered else None
+        except Exception as e:  # noqa: BLE001 - any handler failure becomes an error callback
+            failure = e
+        try:
+            if failure is not None:
+                self._client.fail(event, str(failure) or type(failure).__name__)
+            else:
+                self._client.callback(event, fields or {})
+        except ParspecApiError as e:
+            self._transactions.release(ctx["transaction_id"])
+            self._on_error(e, ctx)
+            return
+        if failure is not None:
+            self._transactions.release(ctx["transaction_id"])
+            self._on_error(failure, ctx)
+        else:
+            self._transactions.done(ctx["transaction_id"])
+
+    def handle(self, raw_body: bytes, headers: Optional[Mapping[str, str]]) -> int:
+        """Both phases in one call; returns the status to answer PM with."""
+        r = self.accept(raw_body, headers)
+        r.process()
+        return r.status
