@@ -18,8 +18,13 @@ ENVIRONMENTS = {
     "production": "https://platform.parspec.io/platform-api/api/v1/",
     "sandbox": "https://platform-sandbox.parspec.io/platform-api/api/v1/",
     "preprod": "https://uat-platform.parspec.io/platform-api/api/v1/",
+    "uat": "https://uat-platform.parspec.io/platform-api/api/v1/",
+    "local": "http://127.0.0.1:4800/platform-api/api/v1/",  # the playground: node harness/playground.js
 }
 DEFAULT_CALLBACK = "integrations/events/callback"
+MAX_BODY = 5 << 20
+_REASONS = {200: "200 OK", 400: "400 Bad Request", 401: "401 Unauthorized", 405: "405 Method Not Allowed",
+            413: "413 Payload Too Large", 500: "500 Internal Server Error"}
 
 # send(method, url, headers, body) -> (status, text); raise OSError for network failures.
 Send = Callable[[str, str, Mapping[str, str], bytes], Tuple[int, str]]
@@ -335,3 +340,89 @@ class Receiver:
         r = self.accept(raw_body, headers)
         r.process()
         return r.status
+
+    def wsgi(self) -> Callable:
+        """A WSGI app for the webhook: answers PM, then runs the event's function once the response is sent.
+
+        Flask: app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {"/parspec/webhook": receiver.wsgi()})
+        """
+        def app(environ: dict, start_response: Callable) -> Any:
+            if environ.get("REQUEST_METHOD") != "POST":
+                start_response(_REASONS[405], [("Allow", "POST"), ("Content-Length", "0")])
+                return [b""]
+            try:
+                length = int(environ.get("CONTENT_LENGTH") or 0)
+            except ValueError:
+                length = 0
+            if length > MAX_BODY:
+                start_response(_REASONS[413], [("Content-Length", "0")])
+                return [b""]
+            raw = environ["wsgi.input"].read(length) if length else b""
+            headers = {k[5:].replace("_", "-"): v for k, v in environ.items() if k.startswith("HTTP_")}
+            try:
+                r = self.accept(raw, headers)
+            except Exception as e:  # noqa: BLE001 - a failing key or transaction store: answer 500, report it
+                self._on_error(e, {})
+                start_response(_REASONS[500], [("Content-Length", "0")])
+                return [b""]
+            start_response(_REASONS[r.status], [("Content-Length", "0")])
+            return _AfterResponse(r.process)
+        return app
+
+    def asgi(self) -> Callable:
+        """An ASGI app for the webhook: answers PM, then runs the event's function in a worker thread.
+
+        FastAPI / Starlette: app.add_route("/parspec/webhook", receiver.asgi(), methods=["POST"])
+        (Not app.mount: a mount answers the bare path with a redirect to a trailing slash.)
+        """
+        import asyncio
+
+        async def app(scope: dict, receive: Callable, send: Callable) -> None:
+            if scope["type"] != "http":
+                return
+            async def answer(status: int, headers: list = ()) -> None:
+                await send({"type": "http.response.start", "status": status, "headers": [(b"content-length", b"0"), *headers]})
+                await send({"type": "http.response.body", "body": b""})
+            if scope["method"] != "POST":
+                return await answer(405, [(b"allow", b"POST")])
+            chunks, size, more = [], 0, True
+            while more:
+                message = await receive()
+                if message["type"] == "http.disconnect":
+                    return
+                chunks.append(message.get("body", b""))
+                size += len(chunks[-1])
+                if size > MAX_BODY:
+                    return await answer(413)
+                more = message.get("more_body", False)
+            headers = {k.decode("latin-1"): v.decode("latin-1") for k, v in scope["headers"]}
+            try:
+                r = await asyncio.to_thread(self.accept, b"".join(chunks), headers)
+            except Exception as e:  # noqa: BLE001 - a failing key or transaction store: answer 500, report it
+                self._on_error(e, {})
+                return await answer(500)
+            await answer(r.status)
+            await asyncio.to_thread(r.process)
+        return _ASGIApp(app)
+
+
+class _ASGIApp:
+    """Wraps the ASGI function in an object: Starlette routes treat a plain function as a request handler,
+    and only call anything else as an ASGI app."""
+
+    def __init__(self, app: Callable) -> None:
+        self._app = app
+
+    async def __call__(self, scope: dict, receive: Callable, send: Callable) -> None:
+        await self._app(scope, receive, send)
+
+
+class _AfterResponse(list):
+    """An empty WSGI body whose close() runs `after`: WSGI servers call close() once the response is sent."""
+
+    def __init__(self, after: Callable[[], None]) -> None:
+        super().__init__([b""])
+        self._after = after
+
+    def close(self) -> None:
+        self._after()
