@@ -1,0 +1,13 @@
+[project]
+name = "parspec-events"
+version = "0.1.0"
+description = "Subscribe to Parspec PM events, verify webhook signatures, and send callbacks."
+requires-python = ">=3.9"
+dependencies = ["cryptography>=41"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["parspec_events"]
