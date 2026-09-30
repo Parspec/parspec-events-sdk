@@ -1,55 +1,50 @@
-// Minimal receiver built on the SDK.
+// Minimal receiver built on the SDK's Receiver.
 //
 // Against the local playground (node harness/playground.js):
-//   PARSPEC_BASE_URL=http://localhost:4800/platform-api/api/v1/ PARSPEC_API_KEY=dev \
+//   PARSPEC_BASE_URL=http://127.0.0.1:4800/platform-api/api/v1/ PARSPEC_API_KEY=dev \
 //   PARSPEC_EVENTS=tandemOrder.publishToErp:1,inventory.fetchPrice:2 node example-server.js
 //
 // Against PM: PARSPEC_ENV=sandbox, your API key, and PUBLIC_URL set to a public URL that reaches PORT.
-// PARSPEC_EVENTS subscribes each event at startup (type:version) and keeps the keys in memory.
+// Each event in PARSPEC_EVENTS (type:version) gets a demo handler and is subscribed at startup. Keys and
+// seen transactions live in memory here; in production, pass your own `keys` and `transactions` stores.
 const http = require('http');
-const { createClient, parseEvent, verify } = require('./index.js');
+const { createClient, createReceiver } = require('./index.js');
 
 const port = Number(process.env.PORT || 3000);
 const publicUrl = (process.env.PUBLIC_URL || `http://localhost:${port}`).replace(/\/+$/, '');
 const client = createClient({ apiKey: process.env.PARSPEC_API_KEY, environment: process.env.PARSPEC_ENV || 'sandbox', baseUrl: process.env.PARSPEC_BASE_URL });
-const keys = {};          // eventType -> publicKey
-const seen = new Set();   // use your database in production: dedup must survive restarts
+const receiver = createReceiver({ client, onError: (e, ctx) => console.error(`${ctx.eventType} ${ctx.transactionId} failed: ${e.message}`) });
 
-const server = http.createServer((req, res) => {
-  const chunks = [];
-  req.on('data', c => chunks.push(c));
-  req.on('end', () => handle(Buffer.concat(chunks), req, res).catch(e => {
-    console.error(`request failed: ${e.message}`);
-    if (!res.headersSent) res.writeHead(400).end();
-  }));
-});
-
-async function handle(raw, req, res) {
-  // Several events can share one URL; the key that verifies identifies the event.
-  const match = Object.entries(keys).find(([, k]) => verify(raw, req.headers['x-signature'], k));
-  if (!match) { console.log('rejected: signature did not verify'); res.writeHead(401).end(); return; }
-  const [eventType, key] = match;
-  const { event, transactionId } = parseEvent(raw, req.headers, key);
-  res.writeHead(200).end();   // acknowledge first, work after
-  if (seen.has(transactionId)) { console.log(`duplicate ${eventType} ${transactionId}, skipped`); return; }
-  seen.add(transactionId);
-  try {
-    const orderId = `SO-${transactionId.slice(0, 8)}`;   // your ERP call goes here
-    await client.callback(event, { orderId });
-    console.log(`${eventType} ${transactionId} → callback sent (orderId ${orderId})`);
-  } catch (e) {
-    console.error(`${eventType} ${transactionId} failed: ${e.message}`);
-    await client.fail(event, e.message).catch(console.error);
-  }
+for (const spec of (process.env.PARSPEC_EVENTS || 'tandemOrder.publishToErp:1').split(',').filter(Boolean)) {
+  const [eventType, version = '1'] = spec.split(':');
+  receiver.on(eventType, async (event, ctx) => {
+    // Your ERP call goes here. Pass ctx.transactionId as its idempotency key: if the callback fails,
+    // PM redelivers and this runs again.
+    const orderId = `SO-${ctx.transactionId.slice(0, 8)}`;
+    console.log(`${eventType} ${ctx.transactionId} → callback with orderId ${orderId}`);
+    return { orderId };
+  }, { version: Number(version) });
 }
 
-server.listen(port, async () => {
-  console.log(`receiver on ${publicUrl}/webhook`);
-  for (const spec of (process.env.PARSPEC_EVENTS || '').split(',').filter(Boolean)) {
-    const [eventType, version = '1'] = spec.split(':');
+const MAX_BODY = 5 << 20;
+http.createServer((req, res) => {
+  const chunks = [];
+  let size = 0;
+  req.on('data', c => { size += c.length; if (size > MAX_BODY) req.destroy(); else chunks.push(c); });
+  req.on('end', async () => {
     try {
-      keys[eventType] = (await client.subscribe(eventType, Number(version), `${publicUrl}/webhook`)).publicKey;
-      console.log(`subscribed ${eventType} v${version}`);
-    } catch (e) { console.error(`subscribe ${eventType} failed: ${e.message}`); }
-  }
+      const { status, process } = await receiver.accept(Buffer.concat(chunks), req.headers);
+      res.writeHead(status).end();   // answer PM first, then do the work
+      if (status === 401) console.log('rejected: signature did not verify');
+      await process();
+    } catch (e) {
+      console.error(`request failed: ${e.message}`);
+      if (!res.headersSent) res.writeHead(500).end();
+    }
+  });
+}).listen(port, async () => {
+  console.log(`receiver on ${publicUrl}/webhook`);
+  try {
+    for (const eventType of Object.keys(await receiver.subscribe(`${publicUrl}/webhook`))) console.log(`subscribed ${eventType}`);
+  } catch (e) { console.error(`subscribe failed: ${e.message}`); }
 });

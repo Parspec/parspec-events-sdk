@@ -132,4 +132,102 @@ function createClient({ apiKey, environment = 'production', baseUrl = ENVIRONMEN
   return { subscribe, unsubscribe, callback, fail };
 }
 
-module.exports = { createClient, verify, parseEvent, SignatureError, EventError, ParspecApiError, ENVIRONMENTS };
+// ---- Receiver: register a function per event type; the SDK verifies, routes, dedupes and calls back ----
+//
+// Storage is yours. Two small interfaces, sync or async:
+//   keys:         get() -> { eventType: publicKeyPem }   and, optionally, set(eventType, publicKeyPem)
+//                 (env vars, a keychain, a secrets manager, a file; omit set() when keys are read-only)
+//   transactions: claim(txid) -> boolean (atomically: false when done or in progress), done(txid), release(txid)
+//                 (a database row or Redis SET NX in production, so it survives restarts and spans servers)
+// memoryKeys() and memoryTransactions() are the in-process versions, for development.
+
+function memoryKeys(initial = {}) {
+  const keys = { ...initial };
+  return { get: () => ({ ...keys }), set: (eventType, publicKey) => { keys[eventType] = publicKey; } };
+}
+
+// leaseMs: a claim older than this counts as abandoned (the worker died), so a redelivery can take it.
+function memoryTransactions({ leaseMs = 15 * 60 * 1000 } = {}) {
+  const processing = new Map();   // txid -> claimed at
+  const done = new Set();
+  return {
+    claim(txid) {
+      if (done.has(txid)) return false;
+      const at = processing.get(txid);
+      if (at !== undefined && Date.now() - at < leaseMs) return false;
+      processing.set(txid, Date.now());
+      return true;
+    },
+    done(txid) { processing.delete(txid); done.add(txid); },
+    release(txid) { processing.delete(txid); }
+  };
+}
+
+function createReceiver({ client, keys = memoryKeys(), transactions = memoryTransactions(), onError = () => {} }) {
+  if (!client) throw new Error('client is required');
+  const handlers = new Map();   // eventType -> { handler, version }
+
+  // handler(event, ctx) returns the callback fields (or nothing, for a plain acknowledgement).
+  // Throwing sends an error callback with the message, which PM shows to the user.
+  function on(eventType, handler, { version = 1 } = {}) {
+    handlers.set(eventType, { handler, version });
+    return api;
+  }
+
+  // Subscribes every registered event to webhookUrl. Each subscribe mints a new key: it goes to
+  // keys.set() when the store has one; the keys are also returned, for stores you manage yourself.
+  async function subscribe(webhookUrl) {
+    const minted = {};
+    for (const [eventType, { version }] of handlers) {
+      minted[eventType] = (await client.subscribe(eventType, version, webhookUrl)).publicKey;
+      if (keys.set) await keys.set(eventType, minted[eventType]);
+    }
+    return minted;
+  }
+
+  // Phase 1, fast: verify, parse, claim. Answer PM with `status` right away, then run process().
+  async function accept(rawBody, headers) {
+    const noop = async () => {};
+    const stored = (await keys.get()) || {};
+    const match = Object.entries(stored).find(([, key]) => verify(rawBody, header(headers, 'x-signature'), key));
+    if (!match) return { status: 401, process: noop };
+    const [eventType, key] = match;
+    let parsed;
+    try { parsed = parseEvent(rawBody, headers, key); } catch (e) { return { status: 400, process: noop, error: e }; }
+    const { event, transactionId, idempotencyKey } = parsed;
+    if (!(await transactions.claim(transactionId))) return { status: 200, eventType, transactionId, duplicate: true, process: noop };
+    const ctx = { eventType, transactionId, idempotencyKey };
+    return { status: 200, eventType, transactionId, process: () => run(event, ctx) };
+  }
+
+  // Phase 2: the handler, one callback, and the claim settled: done, or released so a redelivery retries.
+  async function run(event, ctx) {
+    const registered = handlers.get(ctx.eventType);
+    let fields, failure;
+    try {
+      fields = registered ? await registered.handler(event, ctx) : undefined;
+    } catch (e) { failure = e; }
+    try {
+      if (failure) await client.fail(event, failure.message || String(failure));
+      else await client.callback(event, fields || {});
+    } catch (e) {
+      await transactions.release(ctx.transactionId);
+      onError(e, ctx);
+      return;
+    }
+    if (failure) { await transactions.release(ctx.transactionId); onError(failure, ctx); }
+    else await transactions.done(ctx.transactionId);
+  }
+
+  // Both phases in one call, when your framework can answer after the work is done.
+  async function handle(rawBody, headers) {
+    const r = await accept(rawBody, headers);
+    await r.process();
+    return r.status;
+  }
+
+  const api = { on, subscribe, accept, handle };
+  return api;
+}
+
+module.exports = { createClient, createReceiver, memoryKeys, memoryTransactions, verify, parseEvent, SignatureError, EventError, ParspecApiError, ENVIRONMENTS };

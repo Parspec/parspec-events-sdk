@@ -1,0 +1,412 @@
+[
+  {
+    "name": "routes to the handler whose key verifies",
+    "keys": {
+      "tandemOrder.publishToErp": "signer.pem",
+      "inventory.fetchPrice": "other.pem"
+    },
+    "handlers": {
+      "tandemOrder.publishToErp": [
+        {
+          "return": {
+            "orderId": "SO-1"
+          }
+        }
+      ],
+      "inventory.fetchPrice": [
+        {
+          "return": {
+            "unitPrice": "12.3400"
+          }
+        }
+      ]
+    },
+    "deliveries": [
+      {
+        "body": "{\"eventTransactionID\":\"d3f616c9-5a17-49c8-9530-0c73896fd260\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"sku\":\"DEMO-100\"}}",
+        "signature": "FmJDO1MYs+CTdBmANoB+IycgxqXdV2UZL1ZrvYKKiBUoMEAKXcbrqRgmWi+/K/KjA2JP7JMQVm2XNzJNIpKAC6z91tGCEVf1vNpk0kADxPi/OENsDKp+bSdsRIx9dWPiOm+CpDZVusAMe2U5mK1fSzqeGPdzPZyTDfwivNKvHTr19VGTAIo5LbygwhsmE2WPO1qtZiKS6gkdOiSrFitoCQtvaE9Fa0FkFVUajkMVFD7QLz0S3p9/NxRqSCbAOWsLERq6dbzpwxtJ1sOyrBeygsWzKkD+/mlhg8+JsnIYqCIgtmOjcE0K26bZNZDsZL3BPtbl3MKohZL/+xYZhLeVrw==",
+        "status": 200
+      }
+    ],
+    "expect": {
+      "calls": [
+        {
+          "eventType": "inventory.fetchPrice",
+          "transactionId": "d3f616c9-5a17-49c8-9530-0c73896fd260"
+        }
+      ],
+      "callbacks": [
+        {
+          "EventTransactionID": "d3f616c9-5a17-49c8-9530-0c73896fd260",
+          "EventStatus": "success",
+          "unitPrice": "12.3400"
+        }
+      ],
+      "done": [
+        "d3f616c9-5a17-49c8-9530-0c73896fd260"
+      ],
+      "processing": []
+    }
+  },
+  {
+    "name": "a delivery no stored key verifies is refused",
+    "keys": {
+      "tandemOrder.publishToErp": "signer.pem",
+      "inventory.fetchPrice": "other.pem"
+    },
+    "handlers": {
+      "tandemOrder.publishToErp": [
+        {
+          "return": {}
+        }
+      ]
+    },
+    "deliveries": [
+      {
+        "body": "{\"eventTransactionID\":\"2076d357-2c10-4630-a8e4-38c8ddec93a2\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"sku\":\"DEMO-100\"}}",
+        "signature": "KdCWQwJNv5Q/iGViWI5zmAc+6rCL14bLUOEFM7mg9IsOhfDkTcyzXhUdBArWtgYhHd5xYXTa0xIUPDV/WeeMsuGyVwvCpYEr3cIcnHYQ85KF5Pjikz+JFcAniBL2YwVnFwOaa3+xOzzhc7wfuUG3O592an+0rWQRIeIKkcdB8P0EaQg6OzE84Yv5CcbzIdSa3DE6hKtcjLZmqK3YVeU8fFzuk9BFVEFOkiqcRN2+XIWEizlO7KLByZF6Pn3AD8JEdwAOM4fodOguTWM4TwZUd9Vl3Fg5FP4EQm9k2WrNAm8ejzMAkTMh8LvxNz7+07Y/CED0+KdYuVnTXsqcJ5P1Rg==",
+        "status": 401
+      }
+    ],
+    "expect": {
+      "calls": [],
+      "callbacks": [],
+      "done": [],
+      "processing": []
+    }
+  },
+  {
+    "name": "a duplicate delivery is acknowledged but processed once",
+    "keys": {
+      "tandemOrder.publishToErp": "signer.pem",
+      "inventory.fetchPrice": "other.pem"
+    },
+    "handlers": {
+      "tandemOrder.publishToErp": [
+        {
+          "return": {
+            "orderId": "SO-1"
+          }
+        }
+      ]
+    },
+    "deliveries": [
+      {
+        "body": "{\"eventTransactionID\":\"aacb5517-b4d1-4b07-9c40-ccedc2060f5f\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"po\":1}}",
+        "signature": "EFJFveXHo06Qq68XGUbIbkWNnMTJmPgnj/ZJi+rbHTfhIfoZ97JdbzcT2FbX6kKc4IX2UYSniqMvuDEg1GXYBpj9U4v0OUOdK6nHbcKJ10omhn64xDI0m43A7N7tiDC9oe1hTmP1Mhb75j8d2psV6O1DHnDiYL5c5Qdeg5hBAcaId3Wm7yhLFeQrs1ZQZ3GpgGAak57Lyvnyp+XXf9tfk3zPmj82CeFGqlt+iXaeYUItTBZGtTQQwNUs2PcB2IsRb96tB6QVO/3z2axutsI06jJMq5uAfXi5VZwbGGDchycdL2C/9es0rPW/z8ij6YF2WsZuX2fDthJhqryC49KrLg==",
+        "status": 200
+      },
+      {
+        "body": "{\"eventTransactionID\":\"aacb5517-b4d1-4b07-9c40-ccedc2060f5f\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"po\":1}}",
+        "signature": "EFJFveXHo06Qq68XGUbIbkWNnMTJmPgnj/ZJi+rbHTfhIfoZ97JdbzcT2FbX6kKc4IX2UYSniqMvuDEg1GXYBpj9U4v0OUOdK6nHbcKJ10omhn64xDI0m43A7N7tiDC9oe1hTmP1Mhb75j8d2psV6O1DHnDiYL5c5Qdeg5hBAcaId3Wm7yhLFeQrs1ZQZ3GpgGAak57Lyvnyp+XXf9tfk3zPmj82CeFGqlt+iXaeYUItTBZGtTQQwNUs2PcB2IsRb96tB6QVO/3z2axutsI06jJMq5uAfXi5VZwbGGDchycdL2C/9es0rPW/z8ij6YF2WsZuX2fDthJhqryC49KrLg==",
+        "status": 200
+      }
+    ],
+    "expect": {
+      "calls": [
+        {
+          "eventType": "tandemOrder.publishToErp",
+          "transactionId": "aacb5517-b4d1-4b07-9c40-ccedc2060f5f"
+        }
+      ],
+      "callbacks": [
+        {
+          "EventTransactionID": "aacb5517-b4d1-4b07-9c40-ccedc2060f5f",
+          "EventStatus": "success",
+          "orderId": "SO-1"
+        }
+      ],
+      "done": [
+        "aacb5517-b4d1-4b07-9c40-ccedc2060f5f"
+      ],
+      "processing": []
+    }
+  },
+  {
+    "name": "a transaction another worker is processing is not run again",
+    "keys": {
+      "tandemOrder.publishToErp": "signer.pem",
+      "inventory.fetchPrice": "other.pem"
+    },
+    "processing": [
+      "3a91b0c9-6a78-4b01-acd2-d4e7fde4d1fd"
+    ],
+    "handlers": {
+      "tandemOrder.publishToErp": [
+        {
+          "return": {
+            "orderId": "SO-1"
+          }
+        }
+      ]
+    },
+    "deliveries": [
+      {
+        "body": "{\"eventTransactionID\":\"3a91b0c9-6a78-4b01-acd2-d4e7fde4d1fd\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"po\":1}}",
+        "signature": "hbGZ9Y7YA2QaWkQM9ZkLxBvCjY1oLsCCoKx2/AOUn704iVKiy+eTEiepF0Bkp4KjEvQBEJQk244Of57nODOhiSeJHtCBC+b3bfzHFaEQgak2NeEooPW1Fj9Z8P41FBPktj+jjmygSlyl3OKcZl8dE4WzGY+uvJc4q7y9Bh919Bfz/msB+dmuUGpJmZkvthXHImIjQb0MolTxsa0yYxk6nEJvjCBMBCmUSh2Vr3gy0qnrz+XruLh49dvwE9SMc9bXAgMBfsFakqJ4KQuzJQte6ej/Hvp91cSoFoRi77L5pWXYdyhHOJVTNUPn9zvmzS+2NxlyxmxGQ328Ag+vO/snAQ==",
+        "status": 200
+      }
+    ],
+    "expect": {
+      "calls": [],
+      "callbacks": [],
+      "done": [],
+      "processing": [
+        "3a91b0c9-6a78-4b01-acd2-d4e7fde4d1fd"
+      ]
+    }
+  },
+  {
+    "name": "a transaction already done is not run again",
+    "keys": {
+      "tandemOrder.publishToErp": "signer.pem",
+      "inventory.fetchPrice": "other.pem"
+    },
+    "done": [
+      "0fee9ff8-772c-48be-817b-709e44255874"
+    ],
+    "handlers": {
+      "tandemOrder.publishToErp": [
+        {
+          "return": {
+            "orderId": "SO-1"
+          }
+        }
+      ]
+    },
+    "deliveries": [
+      {
+        "body": "{\"eventTransactionID\":\"0fee9ff8-772c-48be-817b-709e44255874\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"po\":1}}",
+        "signature": "RksKraP8QvQZ7HVLP0AKMRTQw6TYYU4/eI5MYnHmdgiDzn1uXDk+p1z4M6KXFeg31+7M3wUxLYhv6SfSEw123MViK9vNV++oCp9ihRsetaHmWwfoh7md2kNXGIleahkhm/Ep4wUCaX8hkhoUPSjwFhJBYBpDMf+NtYE6Ely7BsJwbBSAhZyKt9+xBx9rGYW08aTfn2A23/RMoz+LJNT8jCwGOkFKChEjfNJsbHE0JuOU7rDYqSrRRaQdLgLe2EeLnf9yZKoz+Rayp0EY30smgtbnFlsIJr3q6PXmCQpZJJy2LEj9BDuXekNt+62kcp/yvb9de0uJlvgldo/NBi+fCw==",
+        "status": 200
+      }
+    ],
+    "expect": {
+      "calls": [],
+      "callbacks": [],
+      "done": [
+        "0fee9ff8-772c-48be-817b-709e44255874"
+      ],
+      "processing": []
+    }
+  },
+  {
+    "name": "a handler that throws sends an error callback and releases the claim, so a redelivery retries",
+    "keys": {
+      "tandemOrder.publishToErp": "signer.pem",
+      "inventory.fetchPrice": "other.pem"
+    },
+    "handlers": {
+      "tandemOrder.publishToErp": [
+        {
+          "throw": "ERP offline"
+        },
+        {
+          "return": {
+            "orderId": "SO-2"
+          }
+        }
+      ]
+    },
+    "deliveries": [
+      {
+        "body": "{\"eventTransactionID\":\"ee3d4e94-1bc1-4cd3-9ae6-e05025fdee2c\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"po\":1}}",
+        "signature": "b39OLTRskU7NxivlD2rhs+Hd6h4ySboB2d/Wnf7149Ks2z9YecITpcreOYj3mnrI9I8vl3FunuIGAeZ3O+KvH86J77AoAHCp5vuoJIAnWhycFIM1SpyUA/GulgfU7C5fqVumHYxKEcH9hYs3SXK+f7mtir48JVxRmy2mo58E33Mz2CBrrRdcmpzktBlvDOayQHY+vSfF4SMA3eFUXdtESo1PSpaUFn0gkYi+TDE7pT9D4NblmQqV3QPjI/hwDlSvfoeyjyJwjLIlShD0DtVUr50lukhZg8WAnKpGNTaa5XSTKawwbWEUea3oy7mV/d7SCcMwi0qdRQy1HTCTFD1OTA==",
+        "status": 200
+      },
+      {
+        "body": "{\"eventTransactionID\":\"ee3d4e94-1bc1-4cd3-9ae6-e05025fdee2c\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"po\":1}}",
+        "signature": "b39OLTRskU7NxivlD2rhs+Hd6h4ySboB2d/Wnf7149Ks2z9YecITpcreOYj3mnrI9I8vl3FunuIGAeZ3O+KvH86J77AoAHCp5vuoJIAnWhycFIM1SpyUA/GulgfU7C5fqVumHYxKEcH9hYs3SXK+f7mtir48JVxRmy2mo58E33Mz2CBrrRdcmpzktBlvDOayQHY+vSfF4SMA3eFUXdtESo1PSpaUFn0gkYi+TDE7pT9D4NblmQqV3QPjI/hwDlSvfoeyjyJwjLIlShD0DtVUr50lukhZg8WAnKpGNTaa5XSTKawwbWEUea3oy7mV/d7SCcMwi0qdRQy1HTCTFD1OTA==",
+        "status": 200
+      }
+    ],
+    "expect": {
+      "calls": [
+        {
+          "eventType": "tandemOrder.publishToErp",
+          "transactionId": "ee3d4e94-1bc1-4cd3-9ae6-e05025fdee2c"
+        },
+        {
+          "eventType": "tandemOrder.publishToErp",
+          "transactionId": "ee3d4e94-1bc1-4cd3-9ae6-e05025fdee2c"
+        }
+      ],
+      "callbacks": [
+        {
+          "EventTransactionID": "ee3d4e94-1bc1-4cd3-9ae6-e05025fdee2c",
+          "EventStatus": "error",
+          "errorMessage": "ERP offline"
+        },
+        {
+          "EventTransactionID": "ee3d4e94-1bc1-4cd3-9ae6-e05025fdee2c",
+          "EventStatus": "success",
+          "orderId": "SO-2"
+        }
+      ],
+      "done": [
+        "ee3d4e94-1bc1-4cd3-9ae6-e05025fdee2c"
+      ],
+      "processing": []
+    }
+  },
+  {
+    "name": "an event with a key but no handler gets a plain acknowledgement",
+    "keys": {
+      "tandemOrder.publishToErp": "signer.pem",
+      "inventory.fetchPrice": "other.pem"
+    },
+    "handlers": {
+      "tandemOrder.publishToErp": [
+        {
+          "return": {}
+        }
+      ]
+    },
+    "deliveries": [
+      {
+        "body": "{\"eventTransactionID\":\"2a548691-af91-4149-865c-2f4a97f0be70\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"sku\":\"DEMO-100\"}}",
+        "signature": "j2pFwZqiSeOP1iJHrxkAmQBUO5rkWmL5s0vAXiPfZUmzq21wczMb9RnWjNsV/Y1LtssyliXR7An1DMOyAVxRXeCC547XxyapdsYl71x4F3cbk1Ze6mBBXzbdWnKfFrqS/5mJUQPB6qN0X/JkHeHYJtcNWbDVxR0XbgXcOLCySfr/Mz0LbCvZP2YAtn0R77qBcJiyETX6z+0EbN5ORBZAqqq0LbfpVKDXWB10KvDWVdqeIHwPLvUd3lm5m9Hk7nSfVrXuY+7ixYYMzGc7q0/9u/VQVib+XnpiBg7wqLOKPyYYvBkXyti1JNtqdiWuyK4RBD07xsAXrJvGataGfJxrXA==",
+        "status": 200
+      }
+    ],
+    "expect": {
+      "calls": [],
+      "callbacks": [
+        {
+          "EventTransactionID": "2a548691-af91-4149-865c-2f4a97f0be70",
+          "EventStatus": "success"
+        }
+      ],
+      "done": [
+        "2a548691-af91-4149-865c-2f4a97f0be70"
+      ],
+      "processing": []
+    }
+  },
+  {
+    "name": "a signed body that is not a PM event is rejected",
+    "keys": {
+      "tandemOrder.publishToErp": "signer.pem",
+      "inventory.fetchPrice": "other.pem"
+    },
+    "handlers": {
+      "tandemOrder.publishToErp": [
+        {
+          "return": {}
+        }
+      ]
+    },
+    "deliveries": [
+      {
+        "body": "[1,2]",
+        "signature": "hMX1UKewNwYSZAUl/7S0cwko6f5tMgh1NWLSM5MFvFztyxjO23CAq3kic1Rm5RH2UKeYwrylZIb22/eWRhr5nZXE+/3ljcwZUgBhSHRVY6/C1Q7LqjdVuZaF6PrI+Pcwb5o96XMNoMzbmsWG1qrx++KJ4QzRZiYGmaeqK/6VCUI7pv0SniHcY/xgiPWMQgu9JY4ClJQN/4yIn5vBGjo2GuBzL5+cuAF+qJHoTh5huQI0RzlWEeST8VTSWWXbAK96Ntu+0tsc1XJXh3nG/nTX77zGrq2CzN37XFU6BItf/vDHr0RL34ojdKchoVgQoWJO5dJsNWCK16i9ns+MQriLXQ==",
+        "status": 400
+      }
+    ],
+    "expect": {
+      "calls": [],
+      "callbacks": [],
+      "done": [],
+      "processing": []
+    }
+  },
+  {
+    "name": "a failed callback releases the claim, so a redelivery runs the handler again",
+    "keys": {
+      "tandemOrder.publishToErp": "signer.pem",
+      "inventory.fetchPrice": "other.pem"
+    },
+    "handlers": {
+      "tandemOrder.publishToErp": [
+        {
+          "return": {
+            "orderId": "SO-1"
+          }
+        }
+      ]
+    },
+    "callbackResponses": [
+      500,
+      200
+    ],
+    "deliveries": [
+      {
+        "body": "{\"eventTransactionID\":\"6bff3723-b714-49ac-a70e-231071e4953c\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"po\":1}}",
+        "signature": "Qmo5tgH2Rzgr0LBAEj/eAFh2ogdY56vsTk3xCQq7wn39af2Vh4KtqvjzrTQiyBy86Yqh1AxmZHXdnidQUBYP03Uksp1hp+kq3MoEtxNWYCVBGHStzgY9ZhvW+WfzDbPDTgKb0kvhXLgzhJzGT6m7Jfv4fk20KtKlW5xcqGjCx1oeiG6ELQHmwa5nj9AMmhhUoa6TlgDGrsbyhg3dvLVdF3yIb3cRMfQEhOFdtuMMtoB5nmtoI9GguL2oDqewYkBa/Q+VwH5U216dBb293ONRzm2xMZ4z3XUL9rGeJ60S7R7jhBos+AoGI5DVl0jGDgRW9Ho0ZHcPZwaFYE+UdrStDA==",
+        "status": 200
+      },
+      {
+        "body": "{\"eventTransactionID\":\"6bff3723-b714-49ac-a70e-231071e4953c\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"po\":1}}",
+        "signature": "Qmo5tgH2Rzgr0LBAEj/eAFh2ogdY56vsTk3xCQq7wn39af2Vh4KtqvjzrTQiyBy86Yqh1AxmZHXdnidQUBYP03Uksp1hp+kq3MoEtxNWYCVBGHStzgY9ZhvW+WfzDbPDTgKb0kvhXLgzhJzGT6m7Jfv4fk20KtKlW5xcqGjCx1oeiG6ELQHmwa5nj9AMmhhUoa6TlgDGrsbyhg3dvLVdF3yIb3cRMfQEhOFdtuMMtoB5nmtoI9GguL2oDqewYkBa/Q+VwH5U216dBb293ONRzm2xMZ4z3XUL9rGeJ60S7R7jhBos+AoGI5DVl0jGDgRW9Ho0ZHcPZwaFYE+UdrStDA==",
+        "status": 200
+      }
+    ],
+    "expect": {
+      "calls": [
+        {
+          "eventType": "tandemOrder.publishToErp",
+          "transactionId": "6bff3723-b714-49ac-a70e-231071e4953c"
+        },
+        {
+          "eventType": "tandemOrder.publishToErp",
+          "transactionId": "6bff3723-b714-49ac-a70e-231071e4953c"
+        }
+      ],
+      "callbacks": [
+        {
+          "EventTransactionID": "6bff3723-b714-49ac-a70e-231071e4953c",
+          "EventStatus": "success",
+          "orderId": "SO-1"
+        },
+        {
+          "EventTransactionID": "6bff3723-b714-49ac-a70e-231071e4953c",
+          "EventStatus": "success",
+          "orderId": "SO-1"
+        }
+      ],
+      "done": [
+        "6bff3723-b714-49ac-a70e-231071e4953c"
+      ],
+      "processing": []
+    }
+  },
+  {
+    "name": "a handler that returns nothing sends a plain acknowledgement",
+    "keys": {
+      "tandemOrder.publishToErp": "signer.pem",
+      "inventory.fetchPrice": "other.pem"
+    },
+    "handlers": {
+      "tandemOrder.publishToErp": [
+        {
+          "return": null
+        }
+      ]
+    },
+    "deliveries": [
+      {
+        "body": "{\"eventTransactionID\":\"8064e52b-dcb8-4cc8-99c7-25a63d469176\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"po\":1}}",
+        "signature": "LZOZMv1kFs3XYNoL7QpC1YcDYSAMyd/RbC/5MQFwGJRrAjrkf+/y8lwNviz5JnRoheaoxxhZ73yBkfsUmZMx7j9Vnz6v+QKLihJ/Nak3KdAxw1itV4mVSfqTo/o+Ae+d+9a6A4cnadKeuELP6Nrj8D548w1VqKGCYLiNHFLVMSJYVzKAPG1dHIg66JkHbtWle45Rg8FunOEi2eAypHrSXXYH8l18tkSQTzYugRVEfEdYLbcvnPudElNgYYcmX2MWeeq0GyNyd8CvTIOsxMSjh6JErg1tg+LbWHYxEjQsx3lFe5YdoDymNJY0g4fpIn04Qg7pszJ4J4FIvLu2TPbsBg==",
+        "status": 200
+      }
+    ],
+    "expect": {
+      "calls": [
+        {
+          "eventType": "tandemOrder.publishToErp",
+          "transactionId": "8064e52b-dcb8-4cc8-99c7-25a63d469176"
+        }
+      ],
+      "callbacks": [
+        {
+          "EventTransactionID": "8064e52b-dcb8-4cc8-99c7-25a63d469176",
+          "EventStatus": "success"
+        }
+      ],
+      "done": [
+        "8064e52b-dcb8-4cc8-99c7-25a63d469176"
+      ],
+      "processing": []
+    }
+  }
+]
