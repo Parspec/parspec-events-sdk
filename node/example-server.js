@@ -1,30 +1,47 @@
-// Minimal receiver: PARSPEC_API_KEY=... PARSPEC_PUBLIC_KEY_FILE=key.pem node example-server.js
-// Subscribe once first (the returned publicKey is what goes in the file):
-//   const { publicKey } = await client.subscribe('tandemOrder.publishToErp', 1, 'https://your-host/webhook')
+// Minimal receiver built on the SDK.
+//
+// Against the local playground (node harness/playground.js):
+//   PARSPEC_BASE_URL=http://localhost:4800/platform-api/api/v1/ PARSPEC_API_KEY=dev \
+//   PARSPEC_EVENTS=tandemOrder.publishToErp:1,inventory.fetchPrice:2 node example-server.js
+//
+// Against PM: PARSPEC_ENV=sandbox, your API key, and PUBLIC_URL set to a public URL that reaches PORT.
+// PARSPEC_EVENTS subscribes each event at startup (type:version) and keeps the keys in memory.
 const http = require('http');
-const fs = require('fs');
-const { createClient, parseEvent, SignatureError } = require('./index.js');
+const { createClient, parseEvent, verify } = require('./index.js');
 
-const client = createClient({ apiKey: process.env.PARSPEC_API_KEY, environment: process.env.PARSPEC_ENV || 'sandbox' });
-const publicKey = fs.readFileSync(process.env.PARSPEC_PUBLIC_KEY_FILE, 'utf8');
+const port = Number(process.env.PORT || 3000);
+const publicUrl = (process.env.PUBLIC_URL || `http://localhost:${port}`).replace(/\/+$/, '');
+const client = createClient({ apiKey: process.env.PARSPEC_API_KEY, environment: process.env.PARSPEC_ENV || 'sandbox', baseUrl: process.env.PARSPEC_BASE_URL });
+const keys = {};          // eventType -> publicKey
 const seen = new Set();   // use your database in production: dedup must survive restarts
 
 http.createServer((req, res) => {
   const chunks = [];
   req.on('data', c => chunks.push(c));
   req.on('end', async () => {
-    let parsed;
-    try { parsed = parseEvent(Buffer.concat(chunks), req.headers, publicKey); }
-    catch (e) { res.writeHead(e instanceof SignatureError ? 401 : 400).end(); return; }
+    const raw = Buffer.concat(chunks);
+    // Several events can share one URL; the key that verifies identifies the event.
+    const match = Object.entries(keys).find(([, k]) => verify(raw, req.headers['x-signature'], k));
+    if (!match) { console.log('rejected: signature did not verify'); res.writeHead(401).end(); return; }
+    const [eventType, key] = match;
+    const { event, transactionId } = parseEvent(raw, req.headers, key);
     res.writeHead(200).end();   // acknowledge first, work after
-    const { event, transactionId } = parsed;
-    if (seen.has(transactionId)) return;
+    if (seen.has(transactionId)) { console.log(`duplicate ${eventType} ${transactionId}, skipped`); return; }
     seen.add(transactionId);
     try {
       const orderId = `SO-${transactionId.slice(0, 8)}`;   // your ERP call goes here
       await client.callback(event, { orderId });
+      console.log(`${eventType} ${transactionId} → callback sent (orderId ${orderId})`);
     } catch (e) {
+      console.error(`${eventType} ${transactionId} failed: ${e.message}`);
       await client.fail(event, e.message).catch(console.error);
     }
   });
-}).listen(process.env.PORT || 3000);
+}).listen(port, async () => {
+  console.log(`receiver on ${publicUrl}/webhook`);
+  for (const spec of (process.env.PARSPEC_EVENTS || '').split(',').filter(Boolean)) {
+    const [eventType, version = '1'] = spec.split(':');
+    keys[eventType] = (await client.subscribe(eventType, Number(version), `${publicUrl}/webhook`)).publicKey;
+    console.log(`subscribed ${eventType} v${version}`);
+  }
+});

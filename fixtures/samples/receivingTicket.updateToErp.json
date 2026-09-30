@@ -1,0 +1,130 @@
+{
+  "eventType": "receivingTicket.updateToErp",
+  "version": 1,
+  "delivery": {
+    "eventTransactionID": "c4116e0a-3a8d-43a4-89e9-6edda41cd8be",
+    "callback_url": "integrations/events/callback",
+    "data": {
+      "bom": {
+        "id": 145669,
+        "name": "BOM 1 - Demo Office Building"
+      },
+      "breakoutId": 6,
+      "customerPoNumber": "PO-9951",
+      "opportunity": {
+        "id": 632,
+        "name": "Opportunity 1",
+        "projectManager": {
+          "displayName": "Jane Demo",
+          "erpId": "ERP-DEMO",
+          "id": 1285
+        },
+        "quoter": {
+          "displayName": "Jane Demo",
+          "erpId": "ERP-DEMO",
+          "id": 1285
+        },
+        "scopes": []
+      },
+      "project": {
+        "erpId": "INT-PRJ-006",
+        "id": 366649,
+        "locationErpId": "6374",
+        "locationName": "Demo Branch",
+        "name": "Demo Office Building"
+      },
+      "purchaseOrderErpId": "PO-ERP-28ED47DC",
+      "receivingTicket": {
+        "lineItems": [
+          {
+            "billAndHoldBranchErpId": "6374",
+            "bomLineId": 2332564,
+            "description": "",
+            "fulfillmentInternalComments": "",
+            "fulfillmentLineId": 7,
+            "fulfillmentNotesExternal": "",
+            "fulfillmentStatus": "Released",
+            "manufacturerErpId": "INT-MFG-00001",
+            "manufacturerName": "DEMO MANUFACTURING",
+            "modelNumber": "DEMO-100",
+            "productErpId": "",
+            "purchaseOrderErpLineId": "PO-LINE-49D088D8",
+            "receivingQuantity": 25,
+            "salesOrderErpLineId": "SO-LINE-A1A0D0B5",
+            "sellingUom": "EA",
+            "shipmentCarrier": "",
+            "shipmentTrackingNumber": "",
+            "type": "",
+            "id": 933,
+            "lineAction": "UPDATE",
+            "changedFields": [
+              "receivingQuantity"
+            ],
+            "receivingTicketErpLineId": "1"
+          }
+        ],
+        "payTo": {
+          "address": {
+            "addressLine1": "100 Example St",
+            "addressLine2": "",
+            "attn": "Billing",
+            "city": "Springfield",
+            "countryCode": "US",
+            "name": "DEMO MANUFACTURING - Pay To",
+            "postalCode": "00100",
+            "stateOrProvinceCode": "AK"
+          },
+          "erpId": "INT-MFG-00001-PAYTO"
+        },
+        "priceBranchErpId": "6374",
+        "receiveBranchErpId": "6374",
+        "shipFrom": {
+          "address": {
+            "addressLine1": "100 Example St",
+            "addressLine2": "",
+            "attn": "",
+            "city": "Springfield",
+            "countryCode": "US",
+            "name": "DEMO MANUFACTURING - Ship From",
+            "postalCode": "00100",
+            "stateOrProvinceCode": "AK"
+          },
+          "erpId": "INT-MFG-00001-SHIPFROM"
+        },
+        "receivingTicketErpId": "RT-ERP-0897936F",
+        "ticketAction": "UPDATE"
+      }
+    }
+  },
+  "callback": {
+    "orderId": "RT-ERP-0897936F",
+    "data": {
+      "receivingTicketErpId": "RT-ERP-0897936F",
+      "ticketAction": "UPDATE",
+      "lineItems": [
+        {
+          "status": "UPDATED",
+          "receivingTicketErpLineId": "1",
+          "receivingTicketLineId": 933,
+          "billAndHoldBranchErpId": "6374",
+          "bomLineId": 2332564,
+          "description": "",
+          "fulfillmentInternalComments": "",
+          "fulfillmentLineId": 7,
+          "fulfillmentNotesExternal": "",
+          "manufacturerErpId": "INT-MFG-00001",
+          "manufacturerName": "DEMO MANUFACTURING",
+          "modelNumber": "DEMO-100",
+          "productErpId": "",
+          "purchaseOrderErpLineId": "PO-LINE-49D088D8",
+          "receivingQuantity": 25,
+          "salesOrderErpLineId": "SO-LINE-A1A0D0B5",
+          "sellingUom": "EA",
+          "shipmentCarrier": "",
+          "shipmentTrackingNumber": "",
+          "type": ""
+        }
+      ]
+    }
+  }
+}

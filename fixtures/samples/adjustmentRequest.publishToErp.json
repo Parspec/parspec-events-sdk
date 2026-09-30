@@ -1,0 +1,198 @@
+{
+  "eventType": "adjustmentRequest.publishToErp",
+  "version": 1,
+  "delivery": {
+    "eventTransactionID": "e87e13d2-055b-4486-b7fc-a231f917fb7d",
+    "callback_url": "integrations/events/callback",
+    "data": {
+      "bom": {
+        "id": 511261,
+        "name": "BOM 1 - Demo Office Building"
+      },
+      "customerReturn": {
+        "billTo": {
+          "address": {
+            "addressLine1": "100 Example St",
+            "addressLine2": "",
+            "attn": "",
+            "city": "Springfield",
+            "countryCode": "US",
+            "name": "Demo Electrical Contractors - Bill To",
+            "postalCode": "00100",
+            "stateOrProvinceCode": "OR"
+          },
+          "erpId": "INT-CO-00009-BILL_TO"
+        },
+        "createdBy": {
+          "displayName": "Jane Demo",
+          "erpId": "ERP-DEMO",
+          "id": 4233
+        },
+        "credits": [],
+        "debits": [],
+        "pickupLocation": {
+          "address": {
+            "addressLine1": "200 Sample Ave",
+            "addressLine2": "",
+            "attn": "",
+            "city": "Riverton",
+            "countryCode": "US",
+            "name": "Demo Branch",
+            "postalCode": "00200",
+            "stateOrProvinceCode": "CA"
+          }
+        },
+        "priceBranchErpId": "4747",
+        "primaryCustomer": {
+          "companyName": "Demo Electrical Contractors",
+          "contactCrmId": null,
+          "contactName": "John Sample",
+          "crmId": "",
+          "duns": "315803542",
+          "erpId": "INT-CO-00009"
+        },
+        "returnTo": "VENDOR",
+        "shipBranchErpId": "4747",
+        "shipTo": {
+          "address": {
+            "addressLine1": "100 Example St",
+            "addressLine2": "",
+            "attn": "",
+            "city": "Springfield",
+            "countryCode": "US",
+            "name": "Demo Electrical Contractors - Ship To",
+            "postalCode": "00100",
+            "stateOrProvinceCode": "OR"
+          },
+          "erpId": "INT-CO-00009-SHIP_TO"
+        },
+        "status": "OPEN",
+        "version": 1
+      },
+      "lineItems": [
+        {
+          "bomLineId": 9569825,
+          "breakoutLineId": 218,
+          "description": "",
+          "extendedCostAmount": "0.00",
+          "extendedDiscountedCostAmount": "22.54",
+          "extendedSellPriceAmount": "12.00",
+          "lastUpdatedAt": "2025-11-24T19:00:46.086Z",
+          "lotId": null,
+          "manufacturerErpId": "INT-MFG-00006",
+          "manufacturerName": "DEMO MANUFACTURING",
+          "marginPercentage": 1,
+          "modelNumber": "DEMO-100",
+          "pricingPer": 1,
+          "productErpId": "",
+          "quantity": -1,
+          "sellingUom": "EA",
+          "sellingUomConversionFactor": 1,
+          "stockLocationErpId": "",
+          "stockMaterialNumber": "",
+          "type": "A1",
+          "unitCostAmount": "0.00",
+          "unitDiscountedCostAmount": "22.54",
+          "unitSellPriceAmount": "12.00"
+        }
+      ],
+      "opportunity": {
+        "id": 568,
+        "name": "Opportunity 1",
+        "scopes": []
+      },
+      "pricingAggregates": {
+        "lots": []
+      },
+      "project": {
+        "erpId": "INT-PRJ-007",
+        "id": 917233,
+        "locationErpId": "4747",
+        "locationName": "Demo Branch",
+        "name": "Demo Office Building"
+      },
+      "vendorReturn": {
+        "createdBy": {
+          "displayName": "Jane Demo",
+          "erpId": "ERP-DEMO",
+          "id": 4233
+        },
+        "internalNotes": "",
+        "payTo": {
+          "address": {
+            "addressLine1": "",
+            "addressLine2": "",
+            "attn": "",
+            "city": "",
+            "countryCode": "US",
+            "name": "",
+            "postalCode": "",
+            "stateOrProvinceCode": ""
+          },
+          "erpId": ""
+        },
+        "priceBranchErpId": "4747",
+        "returnReason": "Warehouse Error",
+        "returnType": "Overship",
+        "rmaOrRgaNumber": "842",
+        "shipFrom": {
+          "address": {
+            "addressLine1": "",
+            "addressLine2": "",
+            "attn": "",
+            "city": "",
+            "countryCode": "US",
+            "name": "",
+            "postalCode": "",
+            "stateOrProvinceCode": ""
+          },
+          "erpId": ""
+        },
+        "shippingInstructions": "",
+        "status": "OPEN",
+        "version": 1
+      }
+    }
+  },
+  "callback": {
+    "orderId": "CR-ERP-AA615A30",
+    "data": {
+      "customerReturnErpId": "CR-ERP-AA615A30",
+      "vendorReturnErpId": "VR-ERP-62CF28C8",
+      "credits": [],
+      "debits": [],
+      "lineItems": [
+        {
+          "bomLineId": 9569825,
+          "breakoutLineId": 218,
+          "description": "",
+          "extendedCostAmount": "0.00",
+          "extendedDiscountedCostAmount": "22.54",
+          "extendedSellPriceAmount": "12.00",
+          "lastUpdatedAt": "2025-11-24T19:00:46.726Z",
+          "lotId": null,
+          "manufacturerErpId": "INT-MFG-00006",
+          "manufacturerName": "DEMO MANUFACTURING",
+          "marginPercentage": 1,
+          "modelNumber": "DEMO-100",
+          "pricingPer": 1,
+          "productErpId": "",
+          "quantity": -1,
+          "sellingUom": "EA",
+          "sellingUomConversionFactor": 1,
+          "stockLocationErpId": "",
+          "stockMaterialNumber": "",
+          "type": "A1",
+          "unitCostAmount": "0.00",
+          "unitDiscountedCostAmount": "22.54",
+          "unitSellPriceAmount": "12.00",
+          "customerReturnErpId": "CR-ERP-AA615A30",
+          "vendorReturnErpId": "VR-ERP-62CF28C8"
+        }
+      ],
+      "pricingAggregates": {
+        "lots": []
+      }
+    }
+  }
+}

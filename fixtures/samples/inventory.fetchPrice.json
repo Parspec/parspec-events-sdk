@@ -1,0 +1,151 @@
+{
+  "eventType": "inventory.fetchPrice",
+  "version": 2,
+  "delivery": {
+    "eventTransactionID": "34ea3b9b-82c8-432c-91b6-344a2c5403ea",
+    "callback_url": "integrations/events/callback",
+    "data": {
+      "items": [
+        {
+          "bomLineId": 5159719,
+          "description": "",
+          "manufacturerErpId": "INT-MFG-00006",
+          "manufacturerName": "DEMO MANUFACTURING",
+          "modelNumber": "DEMO-100",
+          "pricingPer": 1,
+          "productErpId": "",
+          "quantity": 29,
+          "sellingUom": "EA",
+          "sellingUomConversionFactor": 1,
+          "stockLocationErpId": "",
+          "stockLocationName": "",
+          "uom": "EA",
+          "uomQuantity": 1
+        },
+        {
+          "bomLineId": 8126460,
+          "description": "Demo product 1",
+          "manufacturerErpId": "INT-MFG-00001",
+          "manufacturerName": "SAMPLE LIGHTING CO",
+          "modelNumber": "DEMO-200",
+          "pricingPer": 1,
+          "productErpId": "INT-PRD-00001",
+          "quantity": 225,
+          "sellingUom": "EA",
+          "sellingUomConversionFactor": 1,
+          "stockLocationErpId": "7510",
+          "stockLocationName": "",
+          "uom": "EA",
+          "uomQuantity": 1
+        },
+        {
+          "bomLineId": 7603231,
+          "description": "Demo product 2",
+          "manufacturerErpId": "INT-MFG-00032",
+          "manufacturerName": "EXAMPLE CONTROLS",
+          "modelNumber": "DEMO-300",
+          "pricingPer": 1,
+          "productErpId": "INT-PRD-00032",
+          "quantity": 45,
+          "sellingUom": "EA",
+          "sellingUomConversionFactor": 1,
+          "stockLocationErpId": "7510",
+          "stockLocationName": "",
+          "uom": "EA",
+          "uomQuantity": 1
+        }
+      ],
+      "primaryCustomer": {
+        "companyName": "Demo Electrical Contractors",
+        "erpId": "INT-CO-00009"
+      },
+      "project": {
+        "erpId": "INT-PRJ-006",
+        "id": 433067,
+        "locationErpId": "7510",
+        "locationName": "Demo Branch",
+        "name": "Demo Office Building"
+      },
+      "user": {
+        "displayName": "Jane Demo",
+        "erpId": "ERP-DEMO",
+        "id": 9117
+      }
+    }
+  },
+  "callback": {
+    "data": {
+      "items": [
+        {
+          "bomLineId": 5159719,
+          "description": "",
+          "manufacturerErpId": "INT-MFG-00006",
+          "manufacturerName": "DEMO MANUFACTURING",
+          "modelNumber": "DEMO-100",
+          "pricingPer": 1,
+          "productErpId": "",
+          "quantity": 165,
+          "sellingUom": "EA",
+          "sellingUomConversionFactor": 1,
+          "stockLocationErpId": "7510",
+          "stockLocationName": "Demo Branch",
+          "unitCost": {
+            "amount": "492.6500"
+          },
+          "unitSellPrice": {
+            "amount": "665.0800"
+          },
+          "unitDiscountedCost": {
+            "amount": "468.0175"
+          }
+        },
+        {
+          "bomLineId": 8126460,
+          "description": "Demo product 1",
+          "manufacturerErpId": "INT-MFG-00001",
+          "manufacturerName": "SAMPLE LIGHTING CO",
+          "modelNumber": "DEMO-200",
+          "pricingPer": 1,
+          "productErpId": "INT-PRD-00001",
+          "quantity": 215,
+          "sellingUom": "EA",
+          "sellingUomConversionFactor": 1,
+          "stockLocationErpId": "7510",
+          "stockLocationName": "Demo Branch",
+          "unitCost": {
+            "amount": "89.1500"
+          },
+          "unitSellPrice": {
+            "amount": "120.3500"
+          },
+          "unitDiscountedCost": {
+            "amount": "84.6925"
+          }
+        },
+        {
+          "bomLineId": 7603231,
+          "description": "Demo product 2",
+          "manufacturerErpId": "INT-MFG-00032",
+          "manufacturerName": "EXAMPLE CONTROLS",
+          "modelNumber": "DEMO-300",
+          "pricingPer": 1,
+          "productErpId": "INT-PRD-00032",
+          "quantity": 432,
+          "sellingUom": "EA",
+          "sellingUomConversionFactor": 1,
+          "stockLocationErpId": "7510",
+          "stockLocationName": "Demo Branch",
+          "unitCost": {
+            "amount": "7.3200"
+          },
+          "unitSellPrice": {
+            "amount": "9.8800"
+          },
+          "unitDiscountedCost": {
+            "amount": "6.9540"
+          }
+        }
+      ]
+    }
+  }
+}

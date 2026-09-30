@@ -1,0 +1,148 @@
+{
+  "eventType": "salesOrder.publishToErp",
+  "version": 1,
+  "delivery": {
+    "eventTransactionID": "1444b197-69eb-4c9e-837a-a79d03397de4",
+    "callback_url": "integrations/events/callback",
+    "data": {
+      "bom": {
+        "id": 982569,
+        "name": "BOM 1 - Demo Office Building"
+      },
+      "breakoutId": 299,
+      "lineItems": [
+        {
+          "description": "Demo product 1",
+          "extendedCostAmount": "0.00",
+          "extendedDiscountedCostAmount": "0.00",
+          "extendedSellPriceAmount": "0.00",
+          "fulfillmentMethod": "billAndHold",
+          "lastUpdatedDateTime": "2026-01-04T16:16:11.700637+00:00Z",
+          "lotId": null,
+          "manufacturerErpId": "INT-MFG-00037",
+          "manufacturerName": "DEMO MANUFACTURING",
+          "marginPercentage": 23.07668,
+          "modelNumber": "DEMO-100",
+          "orderNotesExternal": "",
+          "orderStatus": null,
+          "pricingPer": 100,
+          "productErpId": "INT-PRD-00037",
+          "productLineId": 819123,
+          "quantity": 0,
+          "releaseNumber": null,
+          "sellingUom": "EA",
+          "sellingUomConversionFactor": 1,
+          "sourceQuoteNumber": "",
+          "stockLocationErpId": "2829",
+          "type": "",
+          "unitCostAmount": "246.57",
+          "unitDiscountedCostAmount": "246.57",
+          "unitSellPriceAmount": "320.54"
+        }
+      ],
+      "opportunity": {
+        "id": 671,
+        "name": "Opportunity 1",
+        "scopes": []
+      },
+      "pricingAggregates": {
+        "lots": [],
+        "tax": []
+      },
+      "project": {
+        "erpId": "INT-PRJ-008",
+        "id": 801253,
+        "locationErpId": "",
+        "locationName": "Demo Branch",
+        "name": "Demo Office Building"
+      },
+      "salesOrder": {
+        "billTo": {
+          "address": {
+            "addressLine1": "100 Example St",
+            "addressLine2": "",
+            "attn": "Jane Demo",
+            "city": "Springfield",
+            "countryCode": "US",
+            "name": "Demo Electrical Contractors",
+            "postalCode": "00100",
+            "stateOrRegionCode": "OR"
+          },
+          "erpId": "INT-CO-00006"
+        },
+        "createdBy": {
+          "displayName": "John Sample",
+          "erpId": "ERP-DEMO",
+          "id": 2977
+        },
+        "customerPoNumber": "",
+        "estimatedLatestShipDateTime": "2026-01-09T23:45:06.036291Z",
+        "orderWriter": null,
+        "priceBranchErpId": "",
+        "primaryCustomer": {
+          "companyName": "Demo Electrical Contractors",
+          "contactCrmId": null,
+          "contactName": "Jane Demo",
+          "crmId": "INT-CRM-CO-550141",
+          "duns": "758401502",
+          "erpId": "INT-CO-00006"
+        },
+        "releaseType": "HFR",
+        "requiredOnSiteDateTime": "2026-01-09T23:45:06.317735Z",
+        "shipBranchErpId": "",
+        "shipTo": {
+          "address": {
+            "addressLine1": "100 Example St",
+            "addressLine2": "",
+            "attn": "Jane Demo",
+            "city": "Springfield",
+            "countryCode": "US",
+            "name": "Demo Electrical Contractors",
+            "postalCode": "00100",
+            "stateOrRegionCode": "OR"
+          },
+          "erpId": "INT-CO-00006"
+        },
+        "status": "",
+        "version": 1
+      }
+    }
+  },
+  "callback": {
+    "orderId": "SO-ERP-5D3FD05E",
+    "data": {
+      "salesOrderErpId": "SO-ERP-5D3FD05E",
+      "lineItems": [
+        {
+          "description": "Demo product 1",
+          "extendedCostAmount": "0.00",
+          "extendedDiscountedCostAmount": "0.00",
+          "extendedSellPriceAmount": "0.00",
+          "fulfillmentMethod": "billAndHold",
+          "lastUpdatedDateTime": "2026-01-04T16:16:11.424488+00:00Z",
+          "lotId": null,
+          "manufacturerErpId": "INT-MFG-00037",
+          "manufacturerName": "DEMO MANUFACTURING",
+          "marginPercentage": 23.07668,
+          "modelNumber": "DEMO-100",
+          "orderNotesExternal": "",
+          "orderStatus": null,
+          "pricingPer": 100,
+          "productErpId": "INT-PRD-00037",
+          "productLineId": 819123,
+          "quantity": 0,
+          "releaseNumber": null,
+          "sellingUom": "EA",
+          "sellingUomConversionFactor": 1,
+          "sourceQuoteNumber": "",
+          "stockLocationErpId": "2829",
+          "type": "",
+          "unitCostAmount": "246.57",
+          "unitDiscountedCostAmount": "246.57",
+          "unitSellPriceAmount": "320.54",
+          "salesOrderErpLineId": "SO-LINE-6E706C05"
+        }
+      ]
+    }
+  }
+}
