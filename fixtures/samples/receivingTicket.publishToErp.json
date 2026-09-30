@@ -1,0 +1,120 @@
+{
+  "eventType": "receivingTicket.publishToErp",
+  "version": 1,
+  "delivery": {
+    "eventTransactionID": "545fbec0-b950-40c0-a04d-01e5ec5eea52",
+    "callback_url": "integrations/events/callback",
+    "data": {
+      "bom": {
+        "id": 527084,
+        "name": "BOM 1 - Demo Office Building"
+      },
+      "breakoutId": 6,
+      "customerPoNumber": "PO-3323",
+      "opportunity": {
+        "id": 109,
+        "name": "Opportunity 1",
+        "projectManager": {
+          "displayName": "Jane Demo",
+          "erpId": "ERP-DEMO",
+          "id": 9810
+        },
+        "quoter": {
+          "displayName": "Jane Demo",
+          "erpId": "ERP-DEMO",
+          "id": 9810
+        },
+        "scopes": []
+      },
+      "project": {
+        "erpId": "INT-PRJ-001",
+        "id": 379745,
+        "locationErpId": "5722",
+        "locationName": "Demo Branch",
+        "name": "Demo Office Building"
+      },
+      "purchaseOrderErpId": "PO-ERP-E4DFE162",
+      "receivingTicket": {
+        "lineItems": [
+          {
+            "billAndHoldBranchErpId": "5722",
+            "bomLineId": 9031803,
+            "description": "",
+            "fulfillmentInternalComments": "",
+            "fulfillmentLineId": 7,
+            "fulfillmentNotesExternal": "",
+            "fulfillmentStatus": "Released",
+            "manufacturerErpId": "INT-MFG-00001",
+            "manufacturerName": "DEMO MANUFACTURING",
+            "modelNumber": "DEMO-100",
+            "productErpId": "",
+            "purchaseOrderErpLineId": "PO-LINE-534835AB",
+            "receivingQuantity": 25,
+            "salesOrderErpLineId": "SO-LINE-9624CFC5",
+            "sellingUom": "EA",
+            "shipmentCarrier": "",
+            "shipmentTrackingNumber": "",
+            "type": ""
+          }
+        ],
+        "payTo": {
+          "address": {
+            "addressLine1": "100 Example St",
+            "addressLine2": "",
+            "attn": "Billing",
+            "city": "Springfield",
+            "countryCode": "US",
+            "name": "DEMO MANUFACTURING - Pay To",
+            "postalCode": "00100",
+            "stateOrProvinceCode": "AK"
+          },
+          "erpId": "INT-MFG-00001-PAYTO"
+        },
+        "priceBranchErpId": "5722",
+        "receiveBranchErpId": "5722",
+        "shipFrom": {
+          "address": {
+            "addressLine1": "100 Example St",
+            "addressLine2": "",
+            "attn": "",
+            "city": "Springfield",
+            "countryCode": "US",
+            "name": "DEMO MANUFACTURING - Ship From",
+            "postalCode": "00100",
+            "stateOrProvinceCode": "AK"
+          },
+          "erpId": "INT-MFG-00001-SHIPFROM"
+        }
+      }
+    }
+  },
+  "callback": {
+    "orderId": "RT-ERP-3F775E6E",
+    "data": {
+      "receivingTicketErpId": "RT-ERP-3F775E6E",
+      "lineItems": [
+        {
+          "billAndHoldBranchErpId": "5722",
+          "bomLineId": 9031803,
+          "description": "",
+          "fulfillmentInternalComments": "",
+          "fulfillmentLineId": 7,
+          "fulfillmentNotesExternal": "",
+          "fulfillmentStatus": "Released",
+          "manufacturerErpId": "INT-MFG-00001",
+          "manufacturerName": "DEMO MANUFACTURING",
+          "modelNumber": "DEMO-100",
+          "productErpId": "",
+          "purchaseOrderErpLineId": "PO-LINE-534835AB",
+          "receivingQuantity": 25,
+          "salesOrderErpLineId": "SO-LINE-9624CFC5",
+          "sellingUom": "EA",
+          "shipmentCarrier": "",
+          "shipmentTrackingNumber": "",
+          "type": "",
+          "receivingTicketErpLineId": "1"
+        }
+      ]
+    }
+  }
+}

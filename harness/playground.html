@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PM Playground</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #ffffff; --text: #1c1c1a; --muted: #6b6b66; --line: #e3e3de;
+    --accent: #2f5bd3; --accent-text: #ffffff; --ok: #1f7a4d; --warn: #9a6400; --bad: #b3261e; --code: #f1f1ed;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161615; --panel: #1f1f1d; --text: #ececea; --muted: #9c9c96; --line: #33332f;
+      --accent: #7c9cff; --accent-text: #0e1320; --ok: #5cc28f; --warn: #e0a84a; --bad: #f07a70; --code: #262623;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { padding: 14px 20px; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: baseline; }
+  header h1 { font-size: 16px; margin: 0; }
+  header .base { color: var(--muted); }
+  code, textarea, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+  code { background: var(--code); padding: 1px 5px; border-radius: 4px; }
+  main { display: grid; grid-template-columns: minmax(260px, 320px) minmax(0, 1fr); gap: 16px; padding: 16px 20px; }
+  @media (max-width: 860px) { main { grid-template-columns: minmax(0, 1fr); padding: 12px 16px; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; min-width: 0; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 10px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 3px; }
+  input, select, textarea { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font: inherit; }
+  textarea { min-height: 320px; resize: vertical; tab-size: 2; }
+  button { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; font: inherit; cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button:hover { border-color: var(--accent); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .list { list-style: none; margin: 0; padding: 0; }
+  .list li { padding: 6px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+  .list li:first-child { border-top: 0; }
+  #mocks { max-height: 55vh; overflow-y: auto; }
+  .mock { cursor: pointer; }
+  .mock:hover .name, .mock.sel .name { color: var(--accent); }
+  .muted { color: var(--muted); font-size: 12px; }
+  .ok { color: var(--ok); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+  .group { font-weight: 600; margin-top: 8px; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 6px 6px; border-top: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+  tr:first-child td { border-top: 0; }
+  .log-wrap { overflow-x: auto; }
+  details pre { margin: 6px 0 0; background: var(--code); padding: 8px; border-radius: 6px; overflow: auto; max-height: 260px; }
+  .empty { color: var(--muted); padding: 8px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>PM Playground</h1>
+  <span class="base">SDK base URL <code id="base">…</code> · any <code>x-api-key</code></span>
+</header>
+<main>
+  <div>
+    <section>
+      <h2>Subscriptions</h2>
+      <ul class="list" id="subs"></ul>
+      <details>
+        <summary class="muted">Subscribe from here</summary>
+        <label for="subType">Event type</label>
+        <select id="subType"></select>
+        <label for="subUrl">Your webhook URL</label>
+        <input id="subUrl" value="http://localhost:3000/webhook">
+        <div class="row"><button id="subBtn">Subscribe</button></div>
+        <p class="muted">Your receiver needs the public key shown in the list to verify deliveries. Subscribing through the SDK does this for you.</p>
+      </details>
+    </section>
+    <section>
+      <h2>Mocks</h2>
+      <div id="mocks"></div>
+      <p class="muted" id="dirs"></p>
+    </section>
+  </div>
+  <div>
+    <section>
+      <h2 id="editorTitle">Pick a mock</h2>
+      <label for="body">Delivery body (a new eventTransactionID is set on every send)</label>
+      <textarea id="body" spellcheck="false"></textarea>
+      <div class="row">
+        <button class="primary" data-mode="normal">Send</button>
+        <button data-mode="twice" title="Same transaction id twice: your receiver should answer once">Send twice</button>
+        <button data-mode="tampered" title="Body changed after signing: your receiver should reject it">Tampered body</button>
+        <button data-mode="stale" title="Signed with the key from before the last resubscribe: your receiver should reject it">Old key</button>
+      </div>
+      <p class="muted" id="sendResult"></p>
+      <details id="cbWrap" hidden><summary class="muted">Example callback fields for this event</summary><pre class="mono" id="cbExample"></pre></details>
+    </section>
+    <section>
+      <div class="row" style="justify-content: space-between; margin: 0 0 6px;"><h2 style="margin: 0;">Activity</h2><button id="clear">Clear</button></div>
+      <div class="log-wrap"><table><tbody id="log"></tbody></table></div>
+    </section>
+  </div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let state = { mocks: [], subscriptions: [], log: [] };
+// Redraw a section only when its content changed: replacing elements every refresh swallows clicks
+// that land mid-redraw.
+const setHTML = (el, html) => { if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; } };
+let selected = null;
+
+async function refresh() {
+  try { state = await (await fetch('/api/state')).json(); } catch { return; }
+  $('base').textContent = state.base;
+  $('dirs').textContent = 'From ' + state.mockDirs.join(', ') + '. Drop JSON files in to add mocks.';
+
+  const subs = state.subscriptions;
+  setHTML($('subs'), subs.length ? subs.map(s => `<li><div class="name">${esc(s.eventType)} <span class="muted">v${esc(s.version)}</span></div>
+    <div class="muted mono">${esc(s.url)}</div><button data-key="${esc(s.eventType)}" style="margin-top:4px">Copy public key</button></li>`).join('')
+    : '<li class="empty">None yet. Subscribe with the SDK, pointed at the base URL above.</li>');
+
+  const types = [...new Set(state.mocks.filter(m => m.eventType).map(m => m.eventType))].sort();
+  const cur = $('subType').value;
+  setHTML($('subType'), types.map(t => `<option ${t === cur ? 'selected' : ''}>${esc(t)}</option>`).join(''));
+
+  const groups = {};
+  for (const m of state.mocks) (groups[m.eventType || '(unreadable)'] ||= []).push(m);
+  setHTML($('mocks'), Object.keys(groups).sort().map(t => `<div class="group">${esc(t)}${subs.some(s => s.eventType === t) ? '' : ' <span class="muted">· not subscribed</span>'}</div>
+    <ul class="list">${groups[t].map(m => m.error
+      ? `<li class="bad">${esc(m.id)}<div class="muted">${esc(m.error)}</div></li>`
+      : `<li class="mock ${selected && selected.id === m.id ? 'sel' : ''}" data-id="${esc(m.id)}"><span class="name">${esc(m.id.split('/').pop())}</span> <span class="muted">${esc(m.id.split('/')[0])}</span></li>`).join('')}</ul>`).join('')
+    || '<p class="empty">No mocks found.</p>');
+
+  setHTML($('log'), state.log.slice().reverse().map(row).join('') || '<tr><td class="empty">Nothing sent yet.</td></tr>');
+}
+
+function row(e) {
+  const t = new Date(e.at).toLocaleTimeString();
+  const tx = e.txid ? `<span class="mono muted">${esc(e.txid.slice(0, 8))}</span>` : '';
+  if (e.kind === 'delivery') {
+    const code = typeof e.status === 'number' ? e.status : null;
+    const recv = code === null ? `<span class="bad">${esc(e.status)}</span>` : `<span class="${code < 300 ? 'ok' : 'warn'}">receiver answered ${code}</span>`;
+    const expectReject = e.mode === 'tampered' || e.mode === 'stale';
+    const verdict = expectReject ? (code !== null && code >= 400 ? '<span class="ok">rejected, as it should be</span>' : '<span class="bad">should have been rejected</span>')
+      : e.awaiting ? (e.overdue ? '<span class="bad">no callback after 30s</span>' : '<span class="warn">waiting for callback…</span>') : '';
+    return `<tr><td class="muted">${t}</td><td>→ ${esc(e.eventType)} ${tx}<div class="muted">${esc(e.mode)}${e.copy ? ' copy ' + e.copy : ''} · ${esc(e.url)}</div></td><td>${recv}<div>${verdict}</div></td></tr>`;
+  }
+  if (e.kind === 'callback') {
+    const cls = e.problem ? 'bad' : e.status === 'error' ? 'warn' : 'ok';
+    return `<tr><td class="muted">${t}</td><td>← callback ${esc(e.eventType || '')} ${tx}
+      <details><summary class="muted">body</summary><pre class="mono">${esc(JSON.stringify(e.body, null, 2))}</pre></details></td>
+      <td><span class="${cls}">${esc(e.status || 'no EventStatus')}</span>${e.body && e.body.errorMessage ? `<div class="muted">${esc(e.body.errorMessage)}</div>` : ''}${e.problem ? `<div class="bad">${esc(e.problem)}</div>` : ''}</td></tr>`;
+  }
+  return `<tr><td class="muted">${t}</td><td class="muted">${esc(e.kind)} ${esc(e.eventType)} v${esc(e.version)}${e.url ? ' → ' + esc(e.url) : ''}</td><td></td></tr>`;
+}
+
+document.addEventListener('click', async ev => {
+  const mock = ev.target.closest('.mock');
+  if (mock) {
+    selected = state.mocks.find(m => m.id === mock.dataset.id);
+    $('editorTitle').textContent = `${selected.eventType} · v${selected.version}`;
+    $('body').value = JSON.stringify(selected.delivery, null, 2);
+    $('cbWrap').hidden = !selected.callback;
+    $('cbExample').textContent = selected.callback ? JSON.stringify(selected.callback, null, 2) : '';
+    $('sendResult').textContent = '';
+    refresh();
+  }
+  const keyBtn = ev.target.closest('[data-key]');
+  if (keyBtn) {
+    const s = state.subscriptions.find(x => x.eventType === keyBtn.dataset.key);
+    try { await navigator.clipboard.writeText(s.publicKey); keyBtn.textContent = 'Copied'; } catch { prompt('Public key', s.publicKey); }
+  }
+  const modeBtn = ev.target.closest('[data-mode]');
+  if (modeBtn) {
+    if (!selected) { $('sendResult').textContent = 'Pick a mock first.'; return; }
+    const r = await (await fetch('/api/send', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventType: selected.eventType, body: $('body').value, mode: modeBtn.dataset.mode }) })).json();
+    $('sendResult').innerHTML = r.error ? `<span class="bad">${esc(r.error)}</span>` : `Sent ${esc(r.txid)} → ${esc(r.results.join(', '))}`;
+    refresh();
+  }
+});
+$('subBtn').onclick = async () => {
+  await fetch('/api/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eventType: $('subType').value, url: $('subUrl').value }) });
+  refresh();
+};
+$('clear').onclick = async () => { await fetch('/api/clear', { method: 'POST' }); refresh(); };
+refresh();
+setInterval(refresh, 1500);
+</script>
+</body>
+</html>

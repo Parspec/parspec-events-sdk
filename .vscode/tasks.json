@@ -1,0 +1,65 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "playground: start (http://localhost:4800)",
+      "type": "shell",
+      "command": "node harness/playground.js",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "playground: example receiver (subscribes to the playground)",
+      "type": "shell",
+      "command": "node node/example-server.js",
+      "options": {
+        "env": {
+          "PARSPEC_BASE_URL": "http://localhost:4800/platform-api/api/v1/",
+          "PARSPEC_API_KEY": "dev",
+          "PARSPEC_EVENTS": "tandemOrder.publishToErp:1,inventory.fetchPrice:2,salesOrder.publishToErp:1"
+        }
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: fixtures (unit tests, all languages)",
+      "type": "shell",
+      "command": "node harness/run.js fixtures",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: live --fake (local fake PM)",
+      "type": "shell",
+      "command": "node harness/run.js live --fake",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: replay recorded cs_sandbox_erp deliveries",
+      "type": "shell",
+      "command": "node harness/run.js replay --events ${input:eventsDir}",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: live --fake with recorded bodies",
+      "type": "shell",
+      "command": "node harness/run.js live --fake --samples ${input:eventsDir}",
+      "group": "test",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "eventsDir",
+      "type": "promptString",
+      "description": "Recorded deliveries (mock-erp runtime-data/<slug>)",
+      "default": "../Workato/runtime-data/cs_sandbox_erp"
+    }
+  ]
+}

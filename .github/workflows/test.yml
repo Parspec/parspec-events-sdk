@@ -64,3 +64,4 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '21' }
       - run: node harness/run.js live --fake
+      - run: node --test harness/playground.test.js

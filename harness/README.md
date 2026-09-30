@@ -6,11 +6,40 @@ Runs all four SDKs through the same checks. Needs the four toolchains (Node 18+,
 |---|---|---|
 | `node harness/run.js fixtures` | Each language's unit tests against `fixtures/` | none |
 | `node harness/run.js replay --events <dir>` | Recorded deliveries through all four SDKs: signature (real, tampered, wrong key) and callback, compared with the callback that was actually sent | none |
-| `node harness/run.js live --fake` | The live flow against a local fake PM | none |
-| `node harness/run.js live --fake --samples <dir>` | The same, with the fake PM delivering recorded bodies: one per event type in `<dir>` (replay layout). Set `PARSPEC_WEBHOOK_URL` to send them through a public URL | none, or your public URL |
+| `node harness/run.js live --fake` | The live flow with the playground standing in for PM: every event type in `fixtures/samples/`, each delivered twice | none |
+| `node harness/run.js live --fake --samples <dir>` | The same, with the mocks from `<dir>` (a mocks folder or a replay-layout folder). Set `PARSPEC_WEBHOOK_URL` to send the deliveries through a public URL | none, or your public URL |
+| `node --test harness/playground.test.js` | The playground end to end: a real SDK receiver, the PM API, the page API and mock loading | none |
 | `node harness/run.js live --events a,b,c` | A real org, end to end | PM + a public URL |
 
 `--only node,java` limits the languages. Exit code is non-zero when any check fails.
+
+## Playground
+
+A local stand-in for PM with a web page, for developing a receiver without a PM org:
+
+```
+node harness/playground.js [--mocks <dir>]          # http://localhost:4800
+```
+
+1. Point your SDK at `http://localhost:4800/platform-api/api/v1/`, with any API key.
+2. Subscribe as usual. The playground issues a key per subscription, as PM does, and lists it on the page. You can also subscribe from the page and copy the key.
+3. Pick a mock, edit the body if you like, and send it. The delivery is signed the way PM signs it. Your callback shows up under Activity, and a delivery that's still unanswered after 30 seconds is flagged.
+4. **Send twice**, **Tampered body** and **Old key** check your duplicate handling and signature checks.
+
+**Mocks** come from `fixtures/samples/` (one sanitized sample per event type) plus every `--mocks` folder (`./mocks` by default). The folders are re-read on every refresh, so dropping a JSON file in is enough. A mock can be:
+
+- the sample format: `{ "eventType", "version", "delivery": {...}, "callback": {...} }`
+- a raw delivery envelope. The event type comes from an `eventType` field or from the file name, either `tandemOrder_publishToErp-1234.json` (mock-erp's recordings work as-is) or `tandemOrder.publishToErp.json`.
+
+Try it with the example receiver:
+
+```
+node harness/playground.js
+PARSPEC_BASE_URL=http://localhost:4800/platform-api/api/v1/ PARSPEC_API_KEY=dev \
+  PARSPEC_EVENTS=tandemOrder.publishToErp:1,inventory.fetchPrice:2 node node/example-server.js
+```
+
+`node --test harness/playground.test.js` runs the same flow as a test.
 
 ## Replay
 

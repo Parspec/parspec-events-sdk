@@ -36,6 +36,7 @@ It adds one commit to each branch whose content changed, and skips the rest.
 ```
 node harness/run.js fixtures
 node harness/run.js live --fake
+node harness/playground.js      # web page for sending mocked events to your receiver
 ```
 
 ## Tests

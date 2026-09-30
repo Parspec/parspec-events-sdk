@@ -4,7 +4,7 @@
 //   node harness/run.js fixtures                  each language's unit tests (fixtures/)
 //   node harness/run.js replay --events <dir>     recorded deliveries through all four SDKs
 //   node harness/run.js live --events a,b,c       a real org, end to end (see harness/README.md)
-//   node harness/run.js live --fake [--samples <dir>]  the same flow against a local fake PM, optionally with recorded bodies
+//   node harness/run.js live --fake [--samples <dir>]  the same flow with the playground as PM (fixtures/samples/ or <dir>)
 //
 // Options: --only node,python,csharp,java   limit the languages
 //
@@ -200,24 +200,23 @@ async function replay() {
 
 // ---- live: a real org ----
 async function live() {
-  // --fake: a local fake PM. With --samples <dir> (replay layout) it delivers one recorded body per
-  // event type found there, and those types become the default --events.
-  const samples = {};
-  if (flag('fake') && opt('samples')) {
-    for (const f of fs.readdirSync(path.join(opt('samples'), 'events')).filter(f => f.endsWith('.json')).sort()) {
-      const type = f.replace(/-[^-]+\.json$/, '').replace('_', '.');
-      samples[type] ||= JSON.parse(fs.readFileSync(path.join(opt('samples'), 'events', f)));
-    }
+  // --fake: the playground (harness/playground.js) stands in for PM. It delivers one mock per event
+  // type, from fixtures/samples/ or from --samples <dir>, and those types become the default --events.
+  let fake = null;
+  const mockFor = {};
+  if (flag('fake')) {
+    const { createPlayground, SAMPLES } = require('./playground.js');
+    const dir = opt('samples') ? (fs.existsSync(path.join(opt('samples'), 'events')) ? path.join(opt('samples'), 'events') : opt('samples')) : SAMPLES;
+    fake = createPlayground({ mockDirs: [dir] });
+    await fake.listen(0);
+    for (const m of fake.loadMocks()) if (m.eventType && !m.error) mockFor[m.eventType] ||= m;
+    if (!opt('events')) args.push('--events', Object.keys(mockFor).join(','));
   }
-  const fakeEvents = Object.keys(samples).length ? Object.keys(samples) : ['tandemOrder.publishToErp', 'inventory.fetchPrice', 'receivingTicket.publishToErp', 'deliveryTicket.publishToErp'];
-  const fake = flag('fake') ? await require('./fake_pm.js').start([...fakeEvents, 'quote.created'], samples) : null;
-  if (fake && !opt('events')) args.push('--events', fakeEvents.join(','));
-  if (fake) fake.preSubscribe(fakeEvents[0], V2.has(fakeEvents[0]) ? 2 : 1);   // someone else holds it: subscribe must take it over
   const port = Number(process.env.PORT || 9477);
   const apiKey = fake ? 'fake-key' : process.env.PARSPEC_API_KEY;
   // With --fake, PARSPEC_WEBHOOK_URL (if set) sends the fake's deliveries through that public URL too.
   const webhookBase = (process.env.PARSPEC_WEBHOOK_URL || (fake ? `http://127.0.0.1:${port}` : '')).replace(/\/+$/, '');
-  const base = fake ? fake.base : process.env.PARSPEC_BASE_URL || {
+  const base = fake ? fake.base() : process.env.PARSPEC_BASE_URL || {
     production: 'https://platform.parspec.io/platform-api/api/v1/',
     sandbox: 'https://platform-sandbox.parspec.io/platform-api/api/v1/',
     preprod: 'https://uat-platform.parspec.io/platform-api/api/v1/',
@@ -273,6 +272,10 @@ async function live() {
   process.once('SIGINT', () => { interrupted = true; console.log('\ninterrupted — cleaning up'); });
 
   try {
+    if (fake) {   // someone else already holds the first event: subscribe has to take it over
+      await fetch(fake.base().replace(/platform-api.*/, 'api/subscribe'), { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventType: events[0].type, version: events[0].version, url: 'http://127.0.0.1:9/elsewhere' }) });
+    }
     console.log('\nsubscribing');
     for (const [i, e] of events.entries()) {
       const lang = langs[i % langs.length];
@@ -284,8 +287,13 @@ async function live() {
     const available = await catalog();
     for (const [type, { lang }] of owner) check(rows[lang].subscribe, !available.has(type), `${type}: catalog still lists it as available`);
 
-    console.log(`\nTrigger these in PM now (waiting up to ${waitSec}s, Ctrl-C to stop early):`);
-    for (const [type, { lang }] of owner) console.log(`  ${type}  (subscribed by ${lang})`);
+    if (fake) {   // every event twice with one transaction id, as PM's redelivery does
+      console.log('\nplayground sending each event twice');
+      for (const type of owner.keys()) await fake.send({ eventType: type, body: JSON.stringify(mockFor[type].delivery), mode: 'twice' });
+    } else {
+      console.log(`\nTrigger these in PM now (waiting up to ${waitSec}s, Ctrl-C to stop early):`);
+      for (const [type, { lang }] of owner) console.log(`  ${type}  (subscribed by ${lang})`);
+    }
     const deadline = Date.now() + waitSec * 1000;
     while (!interrupted && Date.now() < deadline && [...owner.keys()].some(t => !deliveries.some(d => d.eventType === t))) {
       await new Promise(r => setTimeout(r, 1000));
@@ -312,19 +320,22 @@ async function live() {
       check(rows[o.lang].callback, r.ok, `${d.eventType} tx=${txid}: ${r.error}`);
     }
     for (const [type, { lang }] of owner) check(rows[lang].verify, deliveries.some(d => d.eventType === type), `${type}: no delivery arrived`);
-    // The fake delivers every event twice with one transaction id: PM must get exactly one callback each.
+    // Each event arrived twice with one transaction id: the playground must have exactly one callback
+    // per transaction, well-formed.
     if (fake) {
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 300));
+      const cbs = fake.log.filter(e => e.kind === 'callback');
       for (const [type, { lang }] of owner) {
         const txids = new Set(deliveries.filter(d => d.eventType === type).map(d => JSON.parse(d.raw).eventTransactionID));
-        const n = fake.callbacks.filter(c => txids.has(c.EventTransactionID)).length;
-        check(rows[lang].callback, n === txids.size, `${type}: ${n} callbacks for ${txids.size} transaction(s)`);
+        const mine = cbs.filter(c => txids.has(c.txid));
+        check(rows[lang].callback, mine.length === txids.size && mine.every(c => !c.problem && c.status === 'success'),
+          `${type}: ${mine.length} callbacks for ${txids.size} transaction(s)${mine.find(c => c.problem) ? ` (${mine.find(c => c.problem).problem})` : ''}`);
       }
     }
   } finally {
     await cleanup();
     server.close();
-    if (fake) fake.close();
+    if (fake) fake.server.close();
   }
   console.log('');
   const failed = report(rows);
