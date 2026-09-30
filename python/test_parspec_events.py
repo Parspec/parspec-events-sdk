@@ -221,5 +221,98 @@ class Receivers(unittest.TestCase):
         self.assertEqual(ran, [1])
 
 
+class Handlers(unittest.TestCase):
+    """receiver.wsgi() and receiver.asgi(): answer PM first, then run the function."""
+
+    def setUp(self):
+        self.c = load("receiver.json")[0]
+        self.delivery = self.c["deliveries"][0]
+        self.send, self.sent = fake_send()
+        stores = TestStores(self.c)
+        self.receiver = Receiver(Client("k", base_url=BASE, send=self.send), keys=stores, transactions=stores)
+
+    def test_environments_local_and_uat(self):
+        send, calls = fake_send()
+        Client("k", environment="local", send=send).callback({"eventTransactionID": "t"})
+        Client("k", environment="uat", send=send).callback({"eventTransactionID": "t"})
+        self.assertEqual([c["url"] for c in calls], ["http://127.0.0.1:4800/platform-api/api/v1/integrations/events/callback",
+                                                     "https://uat-platform.parspec.io/platform-api/api/v1/integrations/events/callback"])
+
+    def test_wsgi_over_real_http(self):
+        import threading
+        import urllib.error
+        import urllib.request
+        from wsgiref.simple_server import WSGIRequestHandler, make_server
+
+        class Quiet(WSGIRequestHandler):
+            def log_message(self, *args):
+                pass
+
+        gate, ran = threading.Event(), threading.Event()
+
+        def price(event, ctx):
+            gate.wait(5)
+            ran.set()
+            return {"data": {"items": []}}
+        self.receiver.on("inventory.fetchPrice", price)
+        server = make_server("127.0.0.1", 0, self.receiver.wsgi(), handler_class=Quiet)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        url = f"http://127.0.0.1:{server.server_port}/webhook"
+
+        def post(body, method="POST"):
+            req = urllib.request.Request(url, data=body.encode() if body is not None else None, method=method,
+                                         headers={"X-Signature": self.delivery["signature"]})
+            try:
+                with urllib.request.urlopen(req, timeout=5) as res:
+                    return res.status
+            except urllib.error.HTTPError as e:
+                with e:
+                    return e.code
+        try:
+            self.assertEqual(post(self.delivery["body"]), 200, "answered while the function is still waiting")
+            self.assertFalse(ran.is_set())
+            gate.set()
+            self.assertTrue(ran.wait(5))
+            for _ in range(100):
+                if self.sent:
+                    break
+                threading.Event().wait(0.01)
+            self.assertEqual(self.sent[0]["body"]["EventStatus"], "success")
+            self.assertEqual(post(self.delivery["body"].replace('"data":', '"data" :')), 401, "tampered")
+            self.assertEqual(post(None, "GET"), 405)
+        finally:
+            server.shutdown()
+            server.server_close()
+
+    def test_asgi_answers_then_runs(self):
+        import asyncio
+        messages = []
+        self.receiver.on("inventory.fetchPrice", lambda e, ctx: messages.append("function ran"))
+        body = self.delivery["body"].encode()
+
+        async def run(method="POST"):
+            chunks = [{"type": "http.request", "body": body[:10], "more_body": True}, {"type": "http.request", "body": body[10:]}]
+
+            async def receive():
+                return chunks.pop(0)
+
+            async def send(m):
+                messages.append(m.get("status", m["type"]))
+            scope = {"type": "http", "method": method, "headers": [(b"x-signature", self.delivery["signature"].encode())]}
+            await self.receiver.asgi()(scope, receive, send)
+        asyncio.run(run())
+        self.assertEqual(messages, [200, "http.response.body", "function ran"])
+        self.assertEqual(self.sent[0]["body"]["EventStatus"], "success")
+        messages.clear()
+        asyncio.run(run("GET"))
+        self.assertEqual(messages[0], 405)
+
+    def test_asgi_app_is_not_a_plain_function(self):
+        # Starlette's add_route calls a plain function as a request handler (fn(request)), not as an ASGI app.
+        import inspect
+        app = self.receiver.asgi()
+        self.assertFalse(inspect.isfunction(app) or inspect.ismethod(app))
+
+
 if __name__ == "__main__":
     unittest.main()

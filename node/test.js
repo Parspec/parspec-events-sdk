@@ -180,3 +180,46 @@ test('receiver: accept answers before the handler runs', async () => {
   await r.process();
   assert.strictEqual(ran, true);
 });
+
+test('client: local and uat environments', async () => {
+  const urls = [];
+  const fetch = async url => { urls.push(url); return { status: 200, text: async () => '{}' }; };
+  await createClient({ apiKey: 'k', environment: 'local', fetch }).callback({ eventTransactionID: 't' });
+  await createClient({ apiKey: 'k', environment: 'uat', fetch }).callback({ eventTransactionID: 't' });
+  assert.deepStrictEqual(urls, ['http://127.0.0.1:4800/platform-api/api/v1/integrations/events/callback',
+    'https://uat-platform.parspec.io/platform-api/api/v1/integrations/events/callback']);
+});
+
+test('receiver: handler() answers PM before the function runs, over real HTTP', async () => {
+  const http = require('http');
+  const c = load('receiver.json')[0];
+  const { fetch, calls: sent } = fakeFetch();
+  const stores = testStores(c);
+  const errors = [];
+  let release;
+  const gate = new Promise(r => { release = r; });
+  const receiver = createReceiver({ client: createClient({ apiKey: 'k', baseUrl: BASE, fetch }), keys: stores.keys, transactions: stores.transactions, onError: e => errors.push(e.message) })
+    .on('inventory.fetchPrice', async () => { await gate; return { data: { items: [] } }; });
+  const handler = receiver.handler();
+  const server = http.createServer((req, res) => {
+    if (req.url === '/parsed') req.body = { already: 'parsed' };          // what express.json() leaves behind
+    if (req.url === '/raw') req.body = Buffer.from(c.deliveries[0].body);   // what express.raw() leaves behind
+    handler(req, res);
+  });
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  const url = p => `http://127.0.0.1:${server.address().port}${p}`;
+  const post = (p, body = c.deliveries[0].body) => globalThis.fetch(url(p), { method: 'POST', body, headers: { 'X-Signature': c.deliveries[0].signature } });
+  try {
+    assert.strictEqual((await post('/webhook')).status, 200, 'answered while the function is still waiting');
+    assert.strictEqual(sent.length, 0);
+    release();
+    for (let i = 0; i < 100 && !sent.length; i++) await new Promise(r => setTimeout(r, 10));
+    assert.strictEqual(sent[0].body.EventStatus, 'success');
+    assert.strictEqual((await post('/webhook')).status, 200, 'duplicate: acknowledged');
+    assert.strictEqual((await post('/webhook', c.deliveries[0].body.replace('"data":', '"data" :'))).status, 401, 'tampered');
+    assert.strictEqual((await post('/raw', 'ignored')).status, 200, 'a raw body left by express.raw() is used');
+    assert.strictEqual((await post('/parsed')).status, 500);
+    assert.match(errors.join(), /already parsed/);
+    assert.strictEqual((await globalThis.fetch(url('/webhook'))).status, 405);
+  } finally { server.close(); }
+});

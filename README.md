@@ -23,9 +23,9 @@ You can build and test a receiver without a PM org. The playground is a local st
 node harness/playground.js                # then open http://localhost:4800
 ```
 
-1. Point your SDK at `http://127.0.0.1:4800/platform-api/api/v1/` instead of PM. Any API key works.
+1. Point your SDK at the playground with the `local` environment instead of `sandbox`. Any API key works.
 2. Subscribe as you would against PM. The playground issues a signing key per subscription, the same way PM does, and lists it on the page.
-3. Pick an event type, edit the body if you like, and click **Send**. The delivery is signed exactly as PM signs it, and your callback shows up under Activity.
+3. Pick an event type, edit the body if you like, and click **Send**. The delivery is signed exactly as PM signs it, and your callback shows up under Activity, flagged if it's missing fields the sample's callback has or has anything PM would drop or reject.
 4. Use **Send twice**, **Tampered body** and **Old key** to check that your receiver deduplicates and rejects bad signatures. A delivery your receiver never answers is flagged after 30 seconds.
 
 It ships with a sanitized sample for each of the 17 event types (`fixtures/samples/`). To add your own, drop JSON files into a `mocks/` folder; they appear on the next refresh. Recorded deliveries from mock-erp work as-is.
@@ -33,11 +33,11 @@ It ships with a sanitized sample for each of the 17 event types (`fixtures/sampl
 To see it end to end, run the example receiver in a second terminal. It subscribes itself to the playground:
 
 ```
-PARSPEC_BASE_URL=http://127.0.0.1:4800/platform-api/api/v1/ PARSPEC_API_KEY=dev \
+PARSPEC_ENV=local PARSPEC_API_KEY=dev \
   PARSPEC_EVENTS=tandemOrder.publishToErp:1,inventory.fetchPrice:2 node node/example-server.js
 ```
 
-When your receiver works locally, switch the base URL to sandbox. The playground is for your machine only: it has no authentication, so never expose it on a public URL. Details: [harness/README.md](harness/README.md#playground).
+When your receiver works locally, switch the environment to `sandbox`, use your PM API key, and expose the webhook on a public HTTPS URL: [Exposing your webhook](PROTOCOL.md#exposing-your-webhook). The playground is for your machine only: it has no authentication, so never expose it on a public URL. Details: [harness/README.md](harness/README.md#playground).
 
 ## Branches
 

@@ -142,10 +142,10 @@ function row(e) {
     return `<tr><td class="muted">${t}</td><td>→ ${esc(e.eventType)} ${tx}<div class="muted">${esc(e.mode)}${e.copy ? ' copy ' + e.copy : ''} · ${esc(e.url)}</div></td><td>${recv}<div>${verdict}</div></td></tr>`;
   }
   if (e.kind === 'callback') {
-    const cls = e.problem ? 'bad' : e.status === 'error' ? 'warn' : 'ok';
+    const cls = e.problem || e.shape ? 'bad' : e.status === 'error' ? 'warn' : 'ok';
     return `<tr><td class="muted">${t}</td><td>← callback ${esc(e.eventType || '')} ${tx}
       <details><summary class="muted">body</summary><pre class="mono">${esc(JSON.stringify(e.body, null, 2))}</pre></details></td>
-      <td><span class="${cls}">${esc(e.status || 'no EventStatus')}</span>${e.body && e.body.errorMessage ? `<div class="muted">${esc(e.body.errorMessage)}</div>` : ''}${e.problem ? `<div class="bad">${esc(e.problem)}</div>` : ''}</td></tr>`;
+      <td><span class="${cls}">${esc(e.status || 'no EventStatus')}</span>${e.body && e.body.errorMessage ? `<div class="muted">${esc(e.body.errorMessage)}</div>` : ''}${[e.problem, e.shape].filter(Boolean).map(p => `<div class="bad">${esc(p)}</div>`).join('')}</td></tr>`;
   }
   return `<tr><td class="muted">${t}</td><td class="muted">${esc(e.kind)} ${esc(e.eventType)} v${esc(e.version)}${e.url ? ' → ' + esc(e.url) : ''}</td><td></td></tr>`;
 }

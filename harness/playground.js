@@ -22,6 +22,33 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const SAMPLES = path.join(ROOT, 'fixtures/samples');
 const V2 = new Set(['inventory.fetchPrice', 'quote.created', 'quote.updated', 'quote.publishToOrderSystem', 'bom.publishToOrderSystem']);
+// The only top-level callback fields PM reads (platform-api's CallbackResponse); it drops the rest.
+const CALLBACK_FIELDS = new Set(['EventTransactionID', 'EventStatus', 'errorMessage', 'orderId', 'projectErpId', 'metadata', 'data']);
+
+// What PM would drop or reject in a callback's fields, checked against the sample's callback when there is one.
+// null when fine. The protocol itself (transaction id, EventStatus) is checked separately, as `problem`.
+function callbackShape(body, expected) {
+  const out = [];
+  const dropped = Object.keys(body).filter(k => !CALLBACK_FIELDS.has(k));
+  if (dropped.length) out.push(`PM ignores top-level ${dropped.join(', ')}; put event fields in data`);
+  if ('data' in body && (body.data === null || typeof body.data !== 'object' || Array.isArray(body.data))) out.push('data must be an object');
+  if (body.EventStatus === 'error') return out.length ? out.join('; ') : null;
+  if (expected) {
+    const missing = Object.keys(expected).filter(k => k !== 'data' && !(k in body))
+      .concat(Object.keys(expected.data || {}).filter(k => !(body.data && k in body.data)).map(k => `data.${k}`));
+    if (missing.length) out.push(`missing ${missing.join(', ')} (the sample callback has them)`);
+  }
+  const long = [];
+  (function walk(v, at) {
+    if (Array.isArray(v)) v.forEach((x, i) => walk(x, `${at}[${i}]`));
+    else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) {
+      if (k === 'amount' && typeof x === 'string' && /\.\d{5,}$/.test(x)) long.push(`${at}.amount`);
+      else walk(x, at ? `${at}.${k}` : k);
+    }
+  })(body.data, 'data');
+  if (long.length) out.push(`more than 4 decimal places: ${long.slice(0, 3).join(', ')}${long.length > 3 ? '…' : ''}`);
+  return out.length ? out.join('; ') : null;
+}
 
 // mockDirs: folders of mock deliveries; noCallbackMs: when an unanswered delivery is flagged.
 function createPlayground({ mockDirs = [SAMPLES], noCallbackMs = 30000 } = {}) {
@@ -158,9 +185,14 @@ function createPlayground({ mockDirs = [SAMPLES], noCallbackMs = 30000 } = {}) {
       }
       if (req.method === 'POST') {   // callback_url is relative to this base; accept any path so custom ones work
         const delivered = [...log].reverse().find(e => e.kind === 'delivery' && e.txid === body.EventTransactionID);
+        const repeat = delivered && log.some(e => e.kind === 'callback' && e.txid === body.EventTransactionID);
+        const problem = !delivered ? 'no delivery with this EventTransactionID'
+          : repeat ? 'a second callback for this transaction: PM answers 400 "Invalid transaction ID"'
+          : !['success', 'error'].includes(body.EventStatus) ? 'EventStatus must be "success" or "error"' : null;
+        const shape = delivered && !problem ? callbackShape(body, (loadMocks().find(m => m.eventType === delivered.eventType && m.callback) || {}).callback) : null;
         push({ kind: 'callback', path: api, eventType: delivered ? delivered.eventType : null, txid: body.EventTransactionID || null,
-          status: body.EventStatus || null, body: raw.length && !Object.keys(body).length ? raw.toString().slice(0, 2000) : body,
-          problem: !delivered ? 'no delivery with this EventTransactionID' : !['success', 'error'].includes(body.EventStatus) ? 'EventStatus must be "success" or "error"' : null });
+          status: body.EventStatus || null, body: raw.length && !Object.keys(body).length ? raw.toString().slice(0, 2000) : body, problem, shape });
+        if (!delivered || repeat) return json(res, 400, { status: 'error', message: 'Invalid transaction ID' });   // as PM does
         return json(res, 200, { message: 'Success' });
       }
       return json(res, 404, { error: `the playground does not implement ${req.method} ${api}` });

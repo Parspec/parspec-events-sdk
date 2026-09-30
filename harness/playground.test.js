@@ -23,21 +23,26 @@ const api = (pg, p) => pg.base().replace(/platform-api.*/, p.replace(/^\//, ''))
 const post = (url, body, headers = {}) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
 const state = async pg => (await fetch(api(pg, '/api/state'))).json();
 
-// A receiver built on the SDK, the way a developer would write one. `respond` decides the callback.
-async function receiver(client, { respond = e => client.callback(e, { orderId: 'SO-1' }) } = {}) {
+// The sample callback per event type: what a correct receiver sends.
+const SAMPLE_CALLBACKS = Object.fromEntries(fs.readdirSync(SAMPLES).filter(f => f.endsWith('.json'))
+  .map(f => JSON.parse(fs.readFileSync(path.join(SAMPLES, f), 'utf8'))).map(s => [s.eventType, s.callback || {}]));
+
+// A receiver built on the SDK, the way a developer would write one. rx.keys is { eventType: publicKey };
+// `respond(event, eventType)` decides the callback.
+async function receiver(client, { respond = (e, type) => client.callback(e, SAMPLE_CALLBACKS[type] || {}) } = {}) {
   const r = { keys: {}, seen: new Set() };
   r.server = http.createServer((req, res) => {
     const chunks = [];
     req.on('data', c => chunks.push(c));
     req.on('end', async () => {
       const raw = Buffer.concat(chunks);
-      const key = Object.values(r.keys).find(k => sdk.verify(raw, req.headers['x-signature'], k));
-      if (!key) return res.writeHead(401).end();
-      const { event, transactionId } = sdk.parseEvent(raw, req.headers, key);
+      const match = Object.entries(r.keys).find(([, k]) => sdk.verify(raw, req.headers['x-signature'], k));
+      if (!match) return res.writeHead(401).end();
+      const { event, transactionId } = sdk.parseEvent(raw, req.headers, match[1]);
       res.writeHead(200).end();
       if (r.seen.has(transactionId)) return;
       r.seen.add(transactionId);
-      await respond(event);
+      await respond(event, match[0]);
     });
   });
   r.url = `http://127.0.0.1:${await listen(r.server)}/webhook`;
@@ -57,7 +62,7 @@ test('receiver flow: callback, duplicate, tampered, old key', async () => {
   const { pg, client } = await setup();
   const rx = await receiver(client);
   await client.subscribe('tandemOrder.publishToErp', 1, rx.url);   // first key becomes the "old" one
-  rx.keys.t = (await client.subscribe('tandemOrder.publishToErp', 1, rx.url)).publicKey;
+  rx.keys['tandemOrder.publishToErp'] = (await client.subscribe('tandemOrder.publishToErp', 1, rx.url)).publicKey;
 
   const normal = await pg.send({ eventType: 'tandemOrder.publishToErp', body });
   const twice = await pg.send({ eventType: 'tandemOrder.publishToErp', body, mode: 'twice' });
@@ -69,7 +74,7 @@ test('receiver flow: callback, duplicate, tampered, old key', async () => {
   assert.deepStrictEqual([normal.results, twice.results, tampered.results, stale.results], [[200], [200, 200], [401], [401]]);
   const cbs = pg.log.filter(e => e.kind === 'callback');
   assert.deepStrictEqual(cbs.map(c => c.txid).sort(), [normal.txid, twice.txid].sort(), 'one callback per transaction');
-  assert.ok(cbs.every(c => c.status === 'success' && c.body.orderId === 'SO-1' && !c.problem && c.eventType === 'tandemOrder.publishToErp'));
+  assert.ok(cbs.every(c => c.status === 'success' && c.body.data.salesOrderErpId && !c.problem && !c.shape && c.eventType === 'tandemOrder.publishToErp'));
   const s = await state(pg);
   assert.strictEqual(s.log.filter(e => e.awaiting).length, 0, 'nothing left waiting');
 });
@@ -83,7 +88,7 @@ test('every sample in fixtures/samples loads, and every one can be delivered and
   for (const m of mocks) rx.keys[m.eventType] = (await client.subscribe(m.eventType, m.version, rx.url)).publicKey;
   for (const m of mocks) assert.deepStrictEqual((await pg.send({ eventType: m.eventType, body: JSON.stringify(m.delivery) })).results, [200], m.eventType);
   await until(() => pg.log.filter(e => e.kind === 'callback').length >= mocks.length, 'a callback per sample');
-  const answered = new Set(pg.log.filter(e => e.kind === 'callback' && !e.problem).map(e => e.eventType));
+  const answered = new Set(pg.log.filter(e => e.kind === 'callback' && !e.problem && !e.shape).map(e => e.eventType));
   assert.deepStrictEqual([...answered].sort(), mocks.map(m => m.eventType).sort());
 });
 
@@ -145,7 +150,7 @@ test('PM API: key required, catalog hides subscribed events, conflict and unsubs
 test('callbacks: error callbacks, unknown transaction ids and bad EventStatus are reported', async () => {
   const { pg, client } = await setup();
   const rx = await receiver(client, { respond: e => client.fail(e, 'Credit check failed for C-42') });
-  rx.keys.s = (await client.subscribe('salesOrder.publishToErp', 1, rx.url)).publicKey;
+  rx.keys['salesOrder.publishToErp'] = (await client.subscribe('salesOrder.publishToErp', 1, rx.url)).publicKey;
   const sent = await pg.send({ eventType: 'salesOrder.publishToErp', body });
   await until(() => pg.log.some(e => e.kind === 'callback' && e.txid === sent.txid), 'the error callback');
   const err = pg.log.find(e => e.kind === 'callback' && e.txid === sent.txid);
@@ -153,11 +158,32 @@ test('callbacks: error callbacks, unknown transaction ids and bad EventStatus ar
   assert.strictEqual(err.body.errorMessage, 'Credit check failed for C-42');
   assert.strictEqual(err.problem, null);
 
-  await post(pg.base() + 'integrations/events/callback', { EventTransactionID: 'not-a-real-id', EventStatus: 'success' }, { 'x-api-key': 'k' });
-  await post(pg.base() + 'integrations/events/callback', { EventTransactionID: sent.txid, EventStatus: 'done' }, { 'x-api-key': 'k' });
-  const [unknown, bad] = pg.log.filter(e => e.kind === 'callback').slice(-2);
+  const cb = b => post(pg.base() + 'integrations/events/callback', b, { 'x-api-key': 'k' });
+  assert.strictEqual((await cb({ EventTransactionID: 'not-a-real-id', EventStatus: 'success' })).status, 400, 'unknown id: 400, as PM');
+  assert.strictEqual((await cb({ EventTransactionID: sent.txid, EventStatus: 'success', orderId: 'SO-1' })).status, 400, 'second callback: 400, as PM');
+  const [unknown, repeat] = pg.log.filter(e => e.kind === 'callback').slice(-2);
   assert.match(unknown.problem, /no delivery with this EventTransactionID/);
-  assert.match(bad.problem, /EventStatus must be/);
+  assert.match(repeat.problem, /second callback/);
+});
+
+test('callbacks: what PM would drop or reject is flagged against the sample callback', async () => {
+  const { pg, client } = await setup();
+  const rx = await receiver(client, { respond: () => {} });   // answers deliveries, sends no callbacks: the test does
+  for (const t of ['tandemOrder.publishToErp', 'inventory.fetchPrice']) rx.keys[t] = (await client.subscribe(t, t === 'inventory.fetchPrice' ? 2 : 1, rx.url)).publicKey;
+  const problemFor = async (eventType, fields) => {
+    const { txid } = await pg.send({ eventType, body });
+    await post(pg.base() + 'integrations/events/callback', { ...fields, EventTransactionID: txid }, { 'x-api-key': 'k' });
+    const e = pg.log.find(e => e.kind === 'callback' && e.txid === txid);
+    return e.problem || e.shape;
+  };
+  assert.strictEqual(await problemFor('tandemOrder.publishToErp', { EventStatus: 'success', ...SAMPLE_CALLBACKS['tandemOrder.publishToErp'] }), null);
+  assert.match(await problemFor('tandemOrder.publishToErp', { EventStatus: 'done' }), /EventStatus must be/);
+  const bare = await problemFor('tandemOrder.publishToErp', { EventStatus: 'success', orderId: 'SO-1', salesOrderErpId: 'SO-1' });
+  assert.match(bare, /PM ignores top-level salesOrderErpId/);
+  assert.match(bare, /missing data\.salesOrderErpId, data\.purchaseOrderErpId/);
+  assert.match(await problemFor('tandemOrder.publishToErp', { EventStatus: 'success', data: [] }), /data must be an object/);
+  assert.match(await problemFor('inventory.fetchPrice', { EventStatus: 'success', data: { items: [{ unitCost: { amount: '1.23456' } }] } }), /more than 4 decimal places: data\.items\[0\]\.unitCost\.amount/);
+  assert.strictEqual(await problemFor('inventory.fetchPrice', { EventStatus: 'error', errorMessage: 'no prices' }), null, 'an error callback needs no data');
 });
 
 test('a delivery nobody answers is flagged overdue', async () => {
