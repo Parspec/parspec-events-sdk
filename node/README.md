@@ -8,7 +8,7 @@ Copy `index.js` into your project, or install this folder as a package (`@parspe
 const { createClient, parseEvent } = require('@parspec/events');   // or require('./index.js')
 const client = createClient({ apiKey: process.env.PARSPEC_API_KEY, environment: 'sandbox' });
 
-const { publicKey } = await client.subscribe('tandemOrder.publishToErp', 1, 'https://your-host/webhook');
+const { publicKey } = await client.subscribe('salesOrder.publishToErp', 1, 'https://your-host/webhook');
 
 // in your webhook handler, with the raw body (a Buffer, not parsed JSON):
 const { event, transactionId } = parseEvent(rawBody, req.headers, publicKey);  // throws SignatureError
@@ -33,7 +33,7 @@ const receiver = createReceiver({
   transactions: myTransactions,                                          // claim / done / release, e.g. Postgres or Redis
 });
 
-receiver.on('tandemOrder.publishToErp', async (event, ctx) => {
+receiver.on('salesOrder.publishToErp', async (event, ctx) => {
   const so = await erp.createSalesOrder(event.data, { idempotencyKey: ctx.transactionId });
   return { orderId: so.id };        // the success callback; throw to send an error callback
 });
@@ -41,13 +41,12 @@ receiver.on('inventory.fetchPrice', priceHandler, { version: 2 });
 
 const newKeys = await receiver.subscribe('https://erp.example/parspec/webhook');   // store these: PARSPEC_KEYS
 
-// Express: raw body, answer first, then process.
-app.post('/parspec/webhook', express.raw({ type: '*/*' }), async (req, res) => {
-  const { status, process } = await receiver.accept(req.body, req.headers);
-  res.sendStatus(status);
-  await process();
-});
+// Mount it: the receiver reads the raw body, answers PM, then runs your function.
+app.post('/parspec/webhook', receiver.handler());           // Express: before any JSON body parser, or with express.raw()
+// or, with no framework: http.createServer(receiver.handler()).listen(3000);
 ```
+
+`environment: 'local'` points at the playground; `'sandbox'`, `'uat'` and `'production'` at PM. For any other framework, call `const { status, process } = await receiver.accept(rawBody, headers)`, answer with `status`, then `await process()`.
 
 The keys store can be anything with `get()` (and `set()` if `subscribe()` should save keys itself). `memoryKeys()` and `memoryTransactions()` are the in-memory versions for development. `onError(err, ctx)` is called when a handler or callback fails.
 

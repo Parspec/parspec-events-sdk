@@ -6,8 +6,11 @@ const crypto = require('crypto');
 const ENVIRONMENTS = Object.freeze({
   production: 'https://platform.parspec.io/platform-api/api/v1/',
   sandbox: 'https://platform-sandbox.parspec.io/platform-api/api/v1/',
-  preprod: 'https://uat-platform.parspec.io/platform-api/api/v1/'
+  preprod: 'https://uat-platform.parspec.io/platform-api/api/v1/',
+  uat: 'https://uat-platform.parspec.io/platform-api/api/v1/',
+  local: 'http://127.0.0.1:4800/platform-api/api/v1/'   // the playground: node harness/playground.js
 });
+const MAX_BODY = 5 << 20;
 const DEFAULT_CALLBACK = 'integrations/events/callback';
 
 // The signature did not verify: the request did not come from PM, or the key is stale.
@@ -226,7 +229,38 @@ function createReceiver({ client, keys = memoryKeys(), transactions = memoryTran
     return r.status;
   }
 
-  const api = { on, subscribe, accept, handle };
+  // A standard (req, res) handler: reads the raw body, answers PM, then runs the event's function.
+  //   http.createServer(receiver.handler())            or   app.post('/parspec/webhook', receiver.handler())
+  // In Express, mount it before any JSON body parser, or with express.raw(): a parsed body cannot be verified.
+  function handler() {
+    return (req, res) => {
+      if (req.method !== 'POST') return void res.writeHead(405, { Allow: 'POST' }).end();
+      const done = async raw => {
+        try {
+          const r = await accept(raw, req.headers);
+          res.writeHead(r.status).end();
+          await r.process();
+        } catch (e) {
+          if (!res.headersSent) res.writeHead(500).end();
+          onError(e, {});
+        }
+      };
+      if (Buffer.isBuffer(req.body) || typeof req.body === 'string') return void done(Buffer.from(req.body));
+      if (req.body !== undefined || req.readableEnded) {
+        res.writeHead(500).end();
+        return void onError(new Error('the request body was already parsed: mount the handler before any JSON body parser, or use express.raw()'), {});
+      }
+      const chunks = [];
+      let size = 0;
+      req.on('data', c => {
+        size += c.length;
+        if (size > MAX_BODY) { res.writeHead(413, { Connection: 'close' }).end(); req.destroy(); } else chunks.push(c);
+      });
+      req.on('end', () => { if (size <= MAX_BODY) done(Buffer.concat(chunks)); });
+    };
+  }
+
+  const api = { on, subscribe, accept, handle, handler };
   return api;
 }
 
