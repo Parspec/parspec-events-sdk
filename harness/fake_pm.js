@@ -1,19 +1,21 @@
 // A stand-in for PM's events API, for `run.js live --fake`: subscribe mints a key and, shortly after,
 // POSTs a signed delivery (twice, as PM's redelivery would) to the webhook URL; the catalog lists only
 // unsubscribed events; a second subscription for the same event is refused the way PM refuses it.
+// `samples` (eventType -> recorded envelope) makes it deliver real recorded bodies instead of a stub.
 'use strict';
 
 const crypto = require('crypto');
 const http = require('http');
 
-function start(knownEvents) {
+function start(knownEvents, samples = {}) {
   const subs = new Map();       // eventType -> { version, url, privateKey }
   const callbacks = [];
   const json = (res, status, body) => res.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(body));
 
   const deliver = (eventType, sub) => {
     const txid = crypto.randomUUID();
-    const raw = Buffer.from(JSON.stringify({ eventTransactionID: txid, callback_url: 'integrations/events/callback', data: { fake: true, eventType } }));
+    const sample = samples[eventType] || { callback_url: 'integrations/events/callback', data: { fake: true, eventType } };
+    const raw = Buffer.from(JSON.stringify({ ...sample, eventTransactionID: txid }));
     const signature = crypto.sign('RSA-SHA256', raw, sub.privateKey).toString('base64');
     const send = () => fetch(sub.url, { method: 'POST', body: raw, headers: { 'Content-Type': 'application/json', 'X-Signature': signature, 'Idempotency-Key': txid } }).catch(() => {});
     setTimeout(send, 300);

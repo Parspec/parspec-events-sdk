@@ -4,7 +4,7 @@
 //   node harness/run.js fixtures                  each language's unit tests (fixtures/)
 //   node harness/run.js replay --events <dir>     recorded deliveries through all four SDKs
 //   node harness/run.js live --events a,b,c       a real org, end to end (see harness/README.md)
-//   node harness/run.js live --fake               the same flow against a local fake PM (no network)
+//   node harness/run.js live --fake [--samples <dir>]  the same flow against a local fake PM, optionally with recorded bodies
 //
 // Options: --only node,python,csharp,java   limit the languages
 //
@@ -200,12 +200,23 @@ async function replay() {
 
 // ---- live: a real org ----
 async function live() {
-  const fake = flag('fake') ? await require('./fake_pm.js').start(['tandemOrder.publishToErp', 'inventory.fetchPrice', 'receivingTicket.publishToErp', 'deliveryTicket.publishToErp', 'quote.created']) : null;
-  if (fake && !opt('events')) args.push('--events', 'tandemOrder.publishToErp,inventory.fetchPrice,receivingTicket.publishToErp,deliveryTicket.publishToErp');
-  if (fake) fake.preSubscribe('tandemOrder.publishToErp', 1);   // someone else holds it: subscribe must take it over
+  // --fake: a local fake PM. With --samples <dir> (replay layout) it delivers one recorded body per
+  // event type found there, and those types become the default --events.
+  const samples = {};
+  if (flag('fake') && opt('samples')) {
+    for (const f of fs.readdirSync(path.join(opt('samples'), 'events')).filter(f => f.endsWith('.json')).sort()) {
+      const type = f.replace(/-[^-]+\.json$/, '').replace('_', '.');
+      samples[type] ||= JSON.parse(fs.readFileSync(path.join(opt('samples'), 'events', f)));
+    }
+  }
+  const fakeEvents = Object.keys(samples).length ? Object.keys(samples) : ['tandemOrder.publishToErp', 'inventory.fetchPrice', 'receivingTicket.publishToErp', 'deliveryTicket.publishToErp'];
+  const fake = flag('fake') ? await require('./fake_pm.js').start([...fakeEvents, 'quote.created'], samples) : null;
+  if (fake && !opt('events')) args.push('--events', fakeEvents.join(','));
+  if (fake) fake.preSubscribe(fakeEvents[0], V2.has(fakeEvents[0]) ? 2 : 1);   // someone else holds it: subscribe must take it over
   const port = Number(process.env.PORT || 9477);
   const apiKey = fake ? 'fake-key' : process.env.PARSPEC_API_KEY;
-  const webhookBase = fake ? `http://127.0.0.1:${port}` : (process.env.PARSPEC_WEBHOOK_URL || '').replace(/\/+$/, '');
+  // With --fake, PARSPEC_WEBHOOK_URL (if set) sends the fake's deliveries through that public URL too.
+  const webhookBase = (process.env.PARSPEC_WEBHOOK_URL || (fake ? `http://127.0.0.1:${port}` : '')).replace(/\/+$/, '');
   const base = fake ? fake.base : process.env.PARSPEC_BASE_URL || {
     production: 'https://platform.parspec.io/platform-api/api/v1/',
     sandbox: 'https://platform-sandbox.parspec.io/platform-api/api/v1/',
@@ -323,7 +334,7 @@ async function live() {
 
 (async () => {
   if (!['fixtures', 'replay', 'live'].includes(mode)) {
-    console.log('usage: node harness/run.js fixtures | replay --events <dir> | live [--fake] --events a,b,c [--only langs] [--wait sec] [--keep]');
+    console.log('usage: node harness/run.js fixtures | replay --events <dir> | live [--fake [--samples <dir>]] --events a,b,c [--only langs] [--wait sec] [--keep]');
     process.exit(2);
   }
   if (mode !== 'fixtures') await buildAdapters();

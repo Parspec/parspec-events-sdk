@@ -7,6 +7,7 @@ Runs all four SDKs through the same checks. Needs the four toolchains (Node 18+,
 | `node harness/run.js fixtures` | Each language's unit tests against `fixtures/` | none |
 | `node harness/run.js replay --events <dir>` | Recorded deliveries through all four SDKs: signature (real, tampered, wrong key) and callback, compared with the callback that was actually sent | none |
 | `node harness/run.js live --fake` | The live flow against a local fake PM | none |
+| `node harness/run.js live --fake --samples <dir>` | The same, with the fake PM delivering recorded bodies: one per event type in `<dir>` (replay layout). Set `PARSPEC_WEBHOOK_URL` to send them through a public URL | none, or your public URL |
 | `node harness/run.js live --events a,b,c` | A real org, end to end | PM + a public URL |
 
 `--only node,java` limits the languages. Exit code is non-zero when any check fails.
