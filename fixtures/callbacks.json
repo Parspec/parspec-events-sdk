@@ -3,7 +3,7 @@
     "name": "success with order ids",
     "call": "success",
     "event": {
-      "eventTransactionID": "ae18e0a9-5db2-40a0-9ee9-19811d9944d0",
+      "eventTransactionID": "87b3c007-2aa3-4e26-af39-dee403f1cae5",
       "callback_url": "integrations/events/callback"
     },
     "fields": {
@@ -14,7 +14,7 @@
       "method": "POST",
       "url": "https://pm.example/platform-api/api/v1/integrations/events/callback",
       "body": {
-        "EventTransactionID": "ae18e0a9-5db2-40a0-9ee9-19811d9944d0",
+        "EventTransactionID": "87b3c007-2aa3-4e26-af39-dee403f1cae5",
         "EventStatus": "success",
         "orderId": "SO-123",
         "projectErpId": "PRJ-1"
@@ -25,7 +25,7 @@
     "name": "plain acknowledgement",
     "call": "success",
     "event": {
-      "eventTransactionID": "ae18e0a9-5db2-40a0-9ee9-19811d9944d0",
+      "eventTransactionID": "87b3c007-2aa3-4e26-af39-dee403f1cae5",
       "callback_url": "integrations/events/callback"
     },
     "fields": {},
@@ -33,7 +33,7 @@
       "method": "POST",
       "url": "https://pm.example/platform-api/api/v1/integrations/events/callback",
       "body": {
-        "EventTransactionID": "ae18e0a9-5db2-40a0-9ee9-19811d9944d0",
+        "EventTransactionID": "87b3c007-2aa3-4e26-af39-dee403f1cae5",
         "EventStatus": "success"
       }
     }
@@ -42,7 +42,7 @@
     "name": "error with message (shown to the PM user)",
     "call": "error",
     "event": {
-      "eventTransactionID": "ae18e0a9-5db2-40a0-9ee9-19811d9944d0",
+      "eventTransactionID": "87b3c007-2aa3-4e26-af39-dee403f1cae5",
       "callback_url": "integrations/events/callback"
     },
     "message": "Credit check failed for customer C-42",
@@ -50,7 +50,7 @@
       "method": "POST",
       "url": "https://pm.example/platform-api/api/v1/integrations/events/callback",
       "body": {
-        "EventTransactionID": "ae18e0a9-5db2-40a0-9ee9-19811d9944d0",
+        "EventTransactionID": "87b3c007-2aa3-4e26-af39-dee403f1cae5",
         "EventStatus": "error",
         "errorMessage": "Credit check failed for customer C-42"
       }
@@ -60,16 +60,57 @@
     "name": "missing callback_url falls back to the default path",
     "call": "success",
     "event": {
-      "eventTransactionID": "ae18e0a9-5db2-40a0-9ee9-19811d9944d0"
+      "eventTransactionID": "87b3c007-2aa3-4e26-af39-dee403f1cae5"
     },
     "fields": {},
     "expect": {
       "method": "POST",
       "url": "https://pm.example/platform-api/api/v1/integrations/events/callback",
       "body": {
-        "EventTransactionID": "ae18e0a9-5db2-40a0-9ee9-19811d9944d0",
+        "EventTransactionID": "87b3c007-2aa3-4e26-af39-dee403f1cae5",
         "EventStatus": "success"
       }
+    }
+  },
+  {
+    "name": "absolute callback_url is used as-is",
+    "call": "success",
+    "event": {
+      "eventTransactionID": "87b3c007-2aa3-4e26-af39-dee403f1cae5",
+      "callback_url": "https://callbacks.example/hook"
+    },
+    "fields": {},
+    "expect": {
+      "method": "POST",
+      "url": "https://callbacks.example/hook",
+      "body": {
+        "EventTransactionID": "87b3c007-2aa3-4e26-af39-dee403f1cae5",
+        "EventStatus": "success"
+      }
+    }
+  },
+  {
+    "name": "rejected callback raises with the status",
+    "call": "success",
+    "event": {
+      "eventTransactionID": "87b3c007-2aa3-4e26-af39-dee403f1cae5",
+      "callback_url": "integrations/events/callback"
+    },
+    "fields": {},
+    "response": {
+      "status": 500,
+      "body": {
+        "error": "internal"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "url": "https://pm.example/platform-api/api/v1/integrations/events/callback",
+      "body": {
+        "EventTransactionID": "87b3c007-2aa3-4e26-af39-dee403f1cae5",
+        "EventStatus": "success"
+      },
+      "error": 500
     }
   }
 ]

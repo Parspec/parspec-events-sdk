@@ -18,6 +18,17 @@ client.callback(parsed["event"], {"orderId": "SO-123"})
 
 Raw body: `request.get_data()` in Flask, `await request.body()` in FastAPI, `request.body` in Django.
 
+## Use as a git submodule
+
+The `python` branch of this repo holds only this SDK, so it can be added to your project directly:
+
+```
+git submodule add -b python <repo-url> vendor/parspec-events
+pip install -e vendor/parspec-events/python
+```
+
+Pull updates with `git submodule update --remote`. Your project stays on the commit it has until you do.
+
 ## Tests
 
 ```
