@@ -11,6 +11,8 @@ Small libraries for receiving Parspec PM webhook events in your own service: sub
 
 How the events work (subscribe, verify, deduplicate, callback): [PROTOCOL.md](PROTOCOL.md). Usage for each language is in its folder's README.
 
+Each SDK has two layers: the building blocks (`subscribe`, `verify`, `parseEvent`, `callback`) and a **receiver** that puts them together. You register one function per event type; the receiver verifies each delivery, routes it, skips duplicates and sends the callback. You decide where keys and seen transactions are stored: env vars, a keychain, a database or Redis. See [PROTOCOL.md](PROTOCOL.md#the-receiver-and-where-to-store-things).
+
 The Workato connector (`workato-connector`) implements the same protocol for Workato recipes.
 
 ## Try it locally: the PM playground
@@ -79,5 +81,6 @@ All four run the files in `fixtures/`:
 - `signatures.json`: signed bodies and whether each should verify. Covers tampered bodies, re-serialized JSON, a stale key, and empty or malformed signatures.
 - `callbacks.json`: callback inputs and the exact request each SDK must send.
 - `subscribe.json`: scripted request/response exchanges for subscribe, including the conflict retry.
+- `receiver.json`: scripted deliveries for the receiver: routing by key, duplicates, a transaction another worker holds, a handler that throws, a failed callback, an unknown key, and events without a handler.
 
-A new language is done when it passes all three. `node fixtures/generate.js` regenerates the signature and callback fixtures with fresh test keys.
+A new language is done when it passes all four. `node fixtures/generate.js` regenerates the signature and callback fixtures with fresh test keys.

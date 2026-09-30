@@ -18,6 +18,38 @@ client.callback(parsed["event"], {"orderId": "SO-123"})
 
 Raw body: `request.get_data()` in Flask, `await request.body()` in FastAPI, `request.body` in Django.
 
+## Receiver
+
+Register a function per event type; the receiver verifies, routes, deduplicates and calls back. How it works, and how to store keys and transactions in production: [PROTOCOL.md](../PROTOCOL.md#the-receiver-and-where-to-store-things).
+
+```python
+import json, os
+from parspec_events import Client, Receiver
+
+class EnvKeys:                       # read-only key store: env vars
+    def get(self):
+        return json.loads(os.environ.get("PARSPEC_KEYS", "{}"))
+
+receiver = Receiver(Client(os.environ["PARSPEC_API_KEY"], environment="sandbox"),
+                    keys=EnvKeys(), transactions=my_transactions)   # claim / done / release, e.g. Postgres or Redis
+
+@receiver.on("tandemOrder.publishToErp")
+def publish(event, ctx):
+    so = erp.create_sales_order(event["data"], idempotency_key=ctx["transaction_id"])
+    return {"orderId": so.id}        # the success callback; raise to send an error callback
+
+new_keys = receiver.subscribe("https://erp.example/parspec/webhook")   # store these: PARSPEC_KEYS
+
+# FastAPI: raw body, answer first, then process.
+@app.post("/parspec/webhook")
+async def webhook(request: Request, background: BackgroundTasks):
+    r = receiver.accept(await request.body(), request.headers)
+    background.add_task(r.process)
+    return Response(status_code=r.status)
+```
+
+`MemoryKeys` and `MemoryTransactions` are the in-memory versions for development. `on_error(err, ctx)` is called when a handler or callback fails.
+
 ## Use as a git submodule
 
 The `python` branch of this repo holds only this SDK, so it can be added to your project directly:

@@ -5,7 +5,8 @@ import pathlib
 import pickle
 import unittest
 
-from parspec_events import Client, EventError, ParspecApiError, SignatureError, parse_event, verify
+from parspec_events import (Client, EventError, MemoryKeys, MemoryTransactions, ParspecApiError, Receiver, SignatureError,
+                            parse_event, verify)
 
 FX = pathlib.Path(__file__).resolve().parent.parent / "fixtures"
 BASE = "https://pm.example/platform-api/api/v1/"
@@ -123,6 +124,101 @@ class ClientBehaviour(unittest.TestCase):
     def test_api_error_pickles(self):
         e = pickle.loads(pickle.dumps(ParspecApiError("boom", 500, {"a": 1})))
         self.assertEqual((str(e), e.status, e.body), ("boom", 500, {"a": 1}))
+
+
+class TestStores:
+    """A store the test writes itself, as a developer would: proves the interfaces are all the receiver needs."""
+
+    def __init__(self, c):
+        self.key_map = {t: (FX / "keys" / f).read_text() for t, f in c["keys"].items()}
+        self.processing, self.done_ = set(c.get("processing", [])), set(c.get("done", []))
+
+    def get(self):  # read-only key store, like env vars: no set()
+        return self.key_map
+
+    def claim(self, t):
+        if t in self.processing or t in self.done_:
+            return False
+        self.processing.add(t)
+        return True
+
+    def done(self, t):
+        self.processing.discard(t)
+        self.done_.add(t)
+
+    def release(self, t):
+        self.processing.discard(t)
+
+
+class Receivers(unittest.TestCase):
+    def test_scenarios(self):
+        for c in load("receiver.json"):
+            with self.subTest(c["name"]):
+                send, sent = fake_send([{"status": s, "body": {}} for s in c.get("callbackResponses", [])])
+                stores = TestStores(c)
+                receiver = Receiver(Client("k", base_url=BASE, send=send), keys=stores, transactions=stores)
+                calls = []
+                for event_type, behaviours in c["handlers"].items():
+                    def handler(event, ctx, behaviours=behaviours, n=[0]):
+                        calls.append({"eventType": ctx["event_type"], "transactionId": ctx["transaction_id"]})
+                        b = behaviours[min(n[0], len(behaviours) - 1)]
+                        n[0] += 1
+                        if "throw" in b:
+                            raise RuntimeError(b["throw"])
+                        return b["return"]
+                    receiver.on(event_type, handler)
+                got = [receiver.handle(d["body"].encode(), {"X-Signature": d["signature"]}) for d in c["deliveries"]]
+                self.assertEqual(got, [d["status"] for d in c["deliveries"]])
+                self.assertEqual(calls, c["expect"]["calls"])
+                self.assertEqual([x["body"] for x in sent], c["expect"]["callbacks"])
+                self.assertEqual(sorted(stores.done_), sorted(c["expect"]["done"]))
+                self.assertEqual(sorted(stores.processing), sorted(c["expect"]["processing"]))
+
+    def test_subscribe_stores_keys_and_returns_them(self):
+        send, calls = fake_send([{"status": 200, "body": {}}, {"status": 200, "body": {}}, {"status": 200, "body": {"publicKey": "KEY-A"}},
+                                 {"status": 200, "body": {}}, {"status": 200, "body": {}}, {"status": 200, "body": {"publicKey": "KEY-B"}}])
+        keys = MemoryKeys()
+        receiver = Receiver(Client("k", base_url=BASE, send=send), keys=keys)
+
+        @receiver.on("inventory.fetchPrice", version=2)
+        def price(event, ctx):
+            return {}
+
+        receiver.on("tandemOrder.publishToErp", lambda e, c: None)
+        self.assertEqual(receiver.subscribe("https://erp.example/hook"), {"inventory.fetchPrice": "KEY-A", "tandemOrder.publishToErp": "KEY-B"})
+        self.assertEqual(keys.get(), {"inventory.fetchPrice": "KEY-A", "tandemOrder.publishToErp": "KEY-B"})
+        self.assertEqual([(c["body"]["event_type"], c["body"]["event_version"]) for c in calls if c["method"] == "PUT"],
+                         [("inventory.fetchPrice", 2), ("tandemOrder.publishToErp", 1)])
+
+    def test_read_only_key_store_gets_keys_back(self):
+        class EnvKeys:
+            def get(self):
+                return {}
+        send, _ = fake_send([{"status": 200, "body": {}}, {"status": 200, "body": {}}, {"status": 200, "body": {"publicKey": "KEY-A"}}])
+        receiver = Receiver(Client("k", base_url=BASE, send=send), keys=EnvKeys()).on("tandemOrder.publishToErp", lambda e, c: None)
+        self.assertEqual(receiver.subscribe("https://erp.example/hook"), {"tandemOrder.publishToErp": "KEY-A"})
+
+    def test_memory_transactions_lease(self):
+        import time
+        t = MemoryTransactions(lease_seconds=0.02)
+        self.assertTrue(t.claim("a"))
+        self.assertFalse(t.claim("a"))
+        time.sleep(0.03)
+        self.assertTrue(t.claim("a"), "lease expired")
+        t.done("a")
+        self.assertFalse(t.claim("a"))
+
+    def test_accept_answers_before_the_handler_runs(self):
+        c = load("receiver.json")[0]
+        stores = TestStores(c)
+        ran = []
+        send, _ = fake_send()
+        receiver = Receiver(Client("k", base_url=BASE, send=send), keys=stores, transactions=stores)
+        receiver.on("inventory.fetchPrice", lambda e, ctx: ran.append(1))
+        r = receiver.accept(c["deliveries"][0]["body"].encode(), {"x-signature": c["deliveries"][0]["signature"]})
+        self.assertEqual((r.status, r.event_type, ran), (200, "inventory.fetchPrice", []))
+        r.process()
+        self.assertEqual(ran, [1])
 
 
 if __name__ == "__main__":

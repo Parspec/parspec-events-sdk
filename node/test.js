@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
-const { createClient, verify, parseEvent, SignatureError, EventError } = require('./index.js');
+const { createClient, createReceiver, memoryKeys, memoryTransactions, verify, parseEvent, SignatureError, EventError } = require('./index.js');
 
 const fx = f => path.join(__dirname, '../fixtures', f);
 const load = f => JSON.parse(fs.readFileSync(fx(f), 'utf8'));
@@ -87,4 +87,96 @@ test('unsubscribe: an explicit version clears only that version', async () => {
   const out = await createClient({ apiKey: 'k', baseUrl: BASE, fetch }).unsubscribe('quote.created', 2);
   assert.deepStrictEqual(out, [{ version: 2, status: 200 }]);
   assert.deepStrictEqual(calls.map(c => c.body), [{ event_type: 'quote.created', event_version: 2 }]);
+});
+
+// ---- receiver ----
+
+// A store the test writes itself, as a developer would: proves the interfaces are all the receiver needs.
+function testStores(c) {
+  const keyMap = Object.fromEntries(Object.entries(c.keys).map(([t, f]) => [t, fs.readFileSync(fx(`keys/${f}`), 'utf8')]));
+  const processing = new Set(c.processing || []), done = new Set(c.done || []);
+  return {
+    processing, done,
+    keys: { get: async () => keyMap },   // read-only, like env vars
+    transactions: {
+      claim: async t => { if (processing.has(t) || done.has(t)) return false; processing.add(t); return true; },
+      done: async t => { processing.delete(t); done.add(t); },
+      release: async t => { processing.delete(t); }
+    }
+  };
+}
+
+for (const c of load('receiver.json')) {
+  test(`receiver: ${c.name}`, async () => {
+    const statuses = [...(c.callbackResponses || [])];
+    const { fetch, calls: sent } = fakeFetch(statuses.map(status => ({ status, body: {} })));
+    const client = createClient({ apiKey: 'k', baseUrl: BASE, fetch });
+    const stores = testStores(c);
+    const receiver = createReceiver({ client, keys: stores.keys, transactions: stores.transactions });
+    const calls = [];
+    for (const [eventType, behaviours] of Object.entries(c.handlers)) {
+      let n = 0;
+      receiver.on(eventType, async (event, ctx) => {
+        calls.push({ eventType: ctx.eventType, transactionId: ctx.transactionId });
+        const b = behaviours[Math.min(n++, behaviours.length - 1)];
+        if (b.throw) throw new Error(b.throw);
+        return b.return;
+      });
+    }
+    const got = [];
+    for (const d of c.deliveries) got.push(await receiver.handle(Buffer.from(d.body), { 'x-signature': d.signature }));
+    assert.deepStrictEqual(got, c.deliveries.map(d => d.status));
+    assert.deepStrictEqual(calls, c.expect.calls);
+    assert.deepStrictEqual(sent.map(x => x.body), c.expect.callbacks);
+    assert.ok(sent.every(x => x.url === BASE + 'integrations/events/callback'));
+    assert.deepStrictEqual([...stores.done].sort(), [...c.expect.done].sort());
+    assert.deepStrictEqual([...stores.processing].sort(), [...c.expect.processing].sort());
+  });
+}
+
+test('receiver: subscribe stores each new key when the key store can write, and returns them', async () => {
+  const { fetch, calls } = fakeFetch([
+    { status: 200, body: {} }, { status: 200, body: {} }, { status: 200, body: { publicKey: 'KEY-A' } },
+    { status: 200, body: {} }, { status: 200, body: {} }, { status: 200, body: { publicKey: 'KEY-B' } }]);
+  const keys = memoryKeys();
+  const receiver = createReceiver({ client: createClient({ apiKey: 'k', baseUrl: BASE, fetch }), keys })
+    .on('tandemOrder.publishToErp', () => {})
+    .on('inventory.fetchPrice', () => {}, { version: 2 });
+  assert.deepStrictEqual(await receiver.subscribe('https://erp.example/hook'), { 'tandemOrder.publishToErp': 'KEY-A', 'inventory.fetchPrice': 'KEY-B' });
+  assert.deepStrictEqual(keys.get(), { 'tandemOrder.publishToErp': 'KEY-A', 'inventory.fetchPrice': 'KEY-B' });
+  assert.deepStrictEqual(calls.filter(c => c.method === 'PUT').map(c => [c.body.event_type, c.body.event_version, c.body.webhook_url]),
+    [['tandemOrder.publishToErp', 1, 'https://erp.example/hook'], ['inventory.fetchPrice', 2, 'https://erp.example/hook']]);
+});
+
+test('receiver: a read-only key store (no set) still gets the new keys back from subscribe', async () => {
+  const { fetch } = fakeFetch([{ status: 200, body: {} }, { status: 200, body: {} }, { status: 200, body: { publicKey: 'KEY-A' } }]);
+  const receiver = createReceiver({ client: createClient({ apiKey: 'k', baseUrl: BASE, fetch }), keys: { get: () => ({}) } }).on('tandemOrder.publishToErp', () => {});
+  assert.deepStrictEqual(await receiver.subscribe('https://erp.example/hook'), { 'tandemOrder.publishToErp': 'KEY-A' });
+});
+
+test('receiver: memoryTransactions claims once, and a stale claim can be taken over', async () => {
+  const t = memoryTransactions({ leaseMs: 20 });
+  assert.strictEqual(t.claim('a'), true);
+  assert.strictEqual(t.claim('a'), false, 'in progress');
+  await new Promise(r => setTimeout(r, 30));
+  assert.strictEqual(t.claim('a'), true, 'lease expired: the worker is presumed dead');
+  t.done('a');
+  assert.strictEqual(t.claim('a'), false, 'done');
+  t.release('a');
+  assert.strictEqual(t.claim('b'), true);
+  t.release('b');
+  assert.strictEqual(t.claim('b'), true, 'released: can be claimed again');
+});
+
+test('receiver: accept answers before the handler runs', async () => {
+  const c = load('receiver.json')[0];
+  const { fetch } = fakeFetch();
+  const stores = testStores(c);
+  let ran = false;
+  const receiver = createReceiver({ client: createClient({ apiKey: 'k', baseUrl: BASE, fetch }), keys: stores.keys, transactions: stores.transactions })
+    .on('inventory.fetchPrice', async () => { ran = true; });
+  const r = await receiver.accept(Buffer.from(c.deliveries[0].body), { 'X-Signature': c.deliveries[0].signature });
+  assert.deepStrictEqual([r.status, r.eventType, ran], [200, 'inventory.fetchPrice', false]);
+  await r.process();
+  assert.strictEqual(ran, true);
 });

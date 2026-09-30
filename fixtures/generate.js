@@ -6,6 +6,7 @@
 //                                    with an error that is NOT the signature error)
 //   callbacks.json                   callback inputs and the exact request each SDK must send; an `expect`
 //                                    without `method` means no request may be made at all
+//   receiver.json                    scripted deliveries for the receiver (routing, duplicates, errors); see below
 // subscribe.json is hand-written: scripted request/response exchanges.
 //
 // Run: node fixtures/generate.js   (keys are random, so every file changes; commit them together)
@@ -138,4 +139,66 @@ const callbacks = [
 ];
 fs.writeFileSync(path.join(dir, 'callbacks.json'), JSON.stringify(callbacks, null, 2) + '\n');
 
-console.log(`wrote ${signatures.length} signature cases, ${callbacks.length} callback cases`);
+// Receiver scenarios. Each one sets up:
+//   keys          eventType -> key file: what the receiver's key store returns (signer.pem, other.pem)
+//   processing    transaction ids another worker already claimed; done: ids already finished
+//   handlers      eventType -> behaviours for successive calls ({return: fields|null} or {throw: message});
+//                 the last behaviour repeats
+//   callbackResponses  statuses PM answers callbacks with, in order (default 200)
+//   deliveries    raw bodies + X-Signature, each with the HTTP status the receiver must answer
+// and expects: the handler calls made, every callback request sent (even failed ones), and which
+// transactions end up done or still processing. Callback base URL: https://pm.example/platform-api/api/v1/
+const A = 'tandemOrder.publishToErp', B = 'inventory.fetchPrice';
+const stranger = pair();
+const signed = (key, data) => { const txid = crypto.randomUUID(); const b = JSON.stringify({ eventTransactionID: txid, callback_url: 'integrations/events/callback', data }); return { txid, body: b, signature: sign(b, key) }; };
+const deliver = (d, status = 200) => ({ body: d.body, signature: d.signature, status });
+const ok = (txid, fields = {}) => ({ EventTransactionID: txid, EventStatus: 'success', ...fields });
+const keysAB = { [A]: 'signer.pem', [B]: 'other.pem' };
+const scenarios = [];
+{ const d = signed(other, { sku: 'DEMO-100' });
+  scenarios.push({ name: 'routes to the handler whose key verifies', keys: keysAB,
+    handlers: { [A]: [{ return: { orderId: 'SO-1' } }], [B]: [{ return: { unitPrice: '12.3400' } }] },
+    deliveries: [deliver(d)],
+    expect: { calls: [{ eventType: B, transactionId: d.txid }], callbacks: [ok(d.txid, { unitPrice: '12.3400' })], done: [d.txid], processing: [] } }); }
+{ const d = signed(stranger, { sku: 'DEMO-100' });
+  scenarios.push({ name: 'a delivery no stored key verifies is refused', keys: keysAB,
+    handlers: { [A]: [{ return: {} }] }, deliveries: [deliver(d, 401)],
+    expect: { calls: [], callbacks: [], done: [], processing: [] } }); }
+{ const d = signed(signer, { po: 1 });
+  scenarios.push({ name: 'a duplicate delivery is acknowledged but processed once', keys: keysAB,
+    handlers: { [A]: [{ return: { orderId: 'SO-1' } }] }, deliveries: [deliver(d), deliver(d)],
+    expect: { calls: [{ eventType: A, transactionId: d.txid }], callbacks: [ok(d.txid, { orderId: 'SO-1' })], done: [d.txid], processing: [] } }); }
+{ const d = signed(signer, { po: 1 });
+  scenarios.push({ name: 'a transaction another worker is processing is not run again', keys: keysAB, processing: [d.txid],
+    handlers: { [A]: [{ return: { orderId: 'SO-1' } }] }, deliveries: [deliver(d)],
+    expect: { calls: [], callbacks: [], done: [], processing: [d.txid] } }); }
+{ const d = signed(signer, { po: 1 });
+  scenarios.push({ name: 'a transaction already done is not run again', keys: keysAB, done: [d.txid],
+    handlers: { [A]: [{ return: { orderId: 'SO-1' } }] }, deliveries: [deliver(d)],
+    expect: { calls: [], callbacks: [], done: [d.txid], processing: [] } }); }
+{ const d = signed(signer, { po: 1 });
+  scenarios.push({ name: 'a handler that throws sends an error callback and releases the claim, so a redelivery retries', keys: keysAB,
+    handlers: { [A]: [{ throw: 'ERP offline' }, { return: { orderId: 'SO-2' } }] }, deliveries: [deliver(d), deliver(d)],
+    expect: { calls: [{ eventType: A, transactionId: d.txid }, { eventType: A, transactionId: d.txid }],
+      callbacks: [{ EventTransactionID: d.txid, EventStatus: 'error', errorMessage: 'ERP offline' }, ok(d.txid, { orderId: 'SO-2' })],
+      done: [d.txid], processing: [] } }); }
+{ const d = signed(other, { sku: 'DEMO-100' });
+  scenarios.push({ name: 'an event with a key but no handler gets a plain acknowledgement', keys: keysAB,
+    handlers: { [A]: [{ return: {} }] }, deliveries: [deliver(d)],
+    expect: { calls: [], callbacks: [ok(d.txid)], done: [d.txid], processing: [] } }); }
+{ const b = '[1,2]';
+  scenarios.push({ name: 'a signed body that is not a PM event is rejected', keys: keysAB,
+    handlers: { [A]: [{ return: {} }] }, deliveries: [{ body: b, signature: sign(b), status: 400 }],
+    expect: { calls: [], callbacks: [], done: [], processing: [] } }); }
+{ const d = signed(signer, { po: 1 });
+  scenarios.push({ name: 'a failed callback releases the claim, so a redelivery runs the handler again', keys: keysAB,
+    handlers: { [A]: [{ return: { orderId: 'SO-1' } }] }, callbackResponses: [500, 200], deliveries: [deliver(d), deliver(d)],
+    expect: { calls: [{ eventType: A, transactionId: d.txid }, { eventType: A, transactionId: d.txid }],
+      callbacks: [ok(d.txid, { orderId: 'SO-1' }), ok(d.txid, { orderId: 'SO-1' })], done: [d.txid], processing: [] } }); }
+{ const d = signed(signer, { po: 1 });
+  scenarios.push({ name: 'a handler that returns nothing sends a plain acknowledgement', keys: keysAB,
+    handlers: { [A]: [{ return: null }] }, deliveries: [deliver(d)],
+    expect: { calls: [{ eventType: A, transactionId: d.txid }], callbacks: [ok(d.txid)], done: [d.txid], processing: [] } }); }
+fs.writeFileSync(path.join(dir, 'receiver.json'), JSON.stringify(scenarios, null, 2) + '\n');
+
+console.log(`wrote ${signatures.length} signature cases, ${callbacks.length} callback cases, ${scenarios.length} receiver scenarios`);
