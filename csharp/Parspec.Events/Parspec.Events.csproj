@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>Parspec.Events</PackageId>
+    <Version>0.1.0</Version>
+    <Description>Subscribe to Parspec PM events, verify webhook signatures, and send callbacks.</Description>
+  </PropertyGroup>
+</Project>

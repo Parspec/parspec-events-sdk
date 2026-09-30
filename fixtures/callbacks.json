@@ -1,0 +1,75 @@
+[
+  {
+    "name": "success with order ids",
+    "call": "success",
+    "event": {
+      "eventTransactionID": "ae18e0a9-5db2-40a0-9ee9-19811d9944d0",
+      "callback_url": "integrations/events/callback"
+    },
+    "fields": {
+      "orderId": "SO-123",
+      "projectErpId": "PRJ-1"
+    },
+    "expect": {
+      "method": "POST",
+      "url": "https://pm.example/platform-api/api/v1/integrations/events/callback",
+      "body": {
+        "EventTransactionID": "ae18e0a9-5db2-40a0-9ee9-19811d9944d0",
+        "EventStatus": "success",
+        "orderId": "SO-123",
+        "projectErpId": "PRJ-1"
+      }
+    }
+  },
+  {
+    "name": "plain acknowledgement",
+    "call": "success",
+    "event": {
+      "eventTransactionID": "ae18e0a9-5db2-40a0-9ee9-19811d9944d0",
+      "callback_url": "integrations/events/callback"
+    },
+    "fields": {},
+    "expect": {
+      "method": "POST",
+      "url": "https://pm.example/platform-api/api/v1/integrations/events/callback",
+      "body": {
+        "EventTransactionID": "ae18e0a9-5db2-40a0-9ee9-19811d9944d0",
+        "EventStatus": "success"
+      }
+    }
+  },
+  {
+    "name": "error with message (shown to the PM user)",
+    "call": "error",
+    "event": {
+      "eventTransactionID": "ae18e0a9-5db2-40a0-9ee9-19811d9944d0",
+      "callback_url": "integrations/events/callback"
+    },
+    "message": "Credit check failed for customer C-42",
+    "expect": {
+      "method": "POST",
+      "url": "https://pm.example/platform-api/api/v1/integrations/events/callback",
+      "body": {
+        "EventTransactionID": "ae18e0a9-5db2-40a0-9ee9-19811d9944d0",
+        "EventStatus": "error",
+        "errorMessage": "Credit check failed for customer C-42"
+      }
+    }
+  },
+  {
+    "name": "missing callback_url falls back to the default path",
+    "call": "success",
+    "event": {
+      "eventTransactionID": "ae18e0a9-5db2-40a0-9ee9-19811d9944d0"
+    },
+    "fields": {},
+    "expect": {
+      "method": "POST",
+      "url": "https://pm.example/platform-api/api/v1/integrations/events/callback",
+      "body": {
+        "EventTransactionID": "ae18e0a9-5db2-40a0-9ee9-19811d9944d0",
+        "EventStatus": "success"
+      }
+    }
+  }
+]
