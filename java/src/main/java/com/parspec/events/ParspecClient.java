@@ -2,6 +2,7 @@ package com.parspec.events;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -9,6 +10,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -19,12 +21,17 @@ public final class ParspecClient {
         "sandbox", "https://platform-sandbox.parspec.io/platform-api/api/v1/",
         "preprod", "https://uat-platform.parspec.io/platform-api/api/v1/");
     private static final String DEFAULT_CALLBACK = "integrations/events/callback";
+    private static final Pattern ABSOLUTE = Pattern.compile("https?://", Pattern.CASE_INSENSITIVE);
     private static final Pattern NAMED_VERSION = Pattern.compile("version\\s+'?(\\d+)'?", Pattern.CASE_INSENSITIVE);
 
+    // status is the HTTP status, or 0 when there was no response (network failure, timeout) or the
+    // request was refused before sending.
     public static class ParspecApiException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
         private final int status;
         private final String body;
-        public ParspecApiException(String message, int status, String body) { super(message); this.status = status; this.body = body; }
+        public ParspecApiException(String message, int status, String body) { this(message, status, body, null); }
+        public ParspecApiException(String message, int status, String body, Throwable cause) { super(message, cause); this.status = status; this.body = body; }
         public int status() { return status; }
         public String body() { return body; }
     }
@@ -53,8 +60,11 @@ public final class ParspecClient {
         this.transport = transport == null ? defaultTransport() : transport;
     }
 
+    // One HttpClient for every ParspecClient on the default transport: it is thread-safe and pools connections.
+    private static final HttpClient SHARED_HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build();
+
     private static Transport defaultTransport() {
-        HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build();
+        HttpClient http = SHARED_HTTP;
         return (method, url, headers, body) -> {
             HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(30))
                 .method(method, HttpRequest.BodyPublishers.ofString(body));
@@ -64,16 +74,30 @@ public final class ParspecClient {
         };
     }
 
+    // Relative paths resolve against the base. An absolute URL is allowed only on the base's origin:
+    // the API key goes with every request, so a host named in a payload must never receive it.
+    private String resolve(String pathOrUrl) {
+        if (!ABSOLUTE.matcher(pathOrUrl).lookingAt()) return base + pathOrUrl.replaceFirst("^/+", "");
+        URI url, b = URI.create(base);
+        try { url = new URI(pathOrUrl); } catch (URISyntaxException e) { throw new ParspecApiException("invalid URL " + pathOrUrl, 0, ""); }
+        boolean sameOrigin = url.getScheme().equalsIgnoreCase(b.getScheme()) && url.getHost() != null
+            && url.getHost().equalsIgnoreCase(b.getHost()) && port(url) == port(b);
+        if (!sameOrigin) throw new ParspecApiException("refusing to send the API key to " + url.getScheme() + "://" + url.getRawAuthority(), 0, "");
+        return pathOrUrl;
+    }
+
+    private static int port(URI u) { return u.getPort() != -1 ? u.getPort() : "https".equalsIgnoreCase(u.getScheme()) ? 443 : 80; }
+
     private Response call(String method, String pathOrUrl, Map<String, Object> body) {
-        String url = pathOrUrl.matches("^https?://.*") ? pathOrUrl : base + pathOrUrl.replaceFirst("^/+", "");
+        String url = resolve(pathOrUrl);
         try {
             Response r = transport.send(method, url, Map.of("x-api-key", apiKey, "Content-Type", "application/json"), Json.write(body));
             return new Response(r.status(), r.body() == null ? "" : r.body());
-        } catch (IOException e) {
-            throw new ParspecApiException(method + " " + url + " failed: " + e.getMessage(), 0, "");
+        } catch (IOException | IllegalArgumentException e) {
+            throw new ParspecApiException(method + " " + url + " failed: " + e.getMessage(), 0, "", e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new ParspecApiException(method + " " + url + " interrupted", 0, "");
+            throw new ParspecApiException(method + " " + url + " interrupted", 0, "", e);
         }
     }
 
@@ -100,9 +124,10 @@ public final class ParspecClient {
         Response res = call("PUT", "integrations/events/subscribe", body);
         // An org can hold more than one subscription for the same event; each DELETE removes one.
         int replaced = 0;
-        while (res.status() == 400 && res.body().toLowerCase().contains("already exists") && replaced < 3) {
+        while (res.status() == 400 && res.body().toLowerCase(Locale.ROOT).contains("already exists") && replaced < 3) {
             Matcher m = NAMED_VERSION.matcher(res.body());
-            int v = m.find() ? Integer.parseInt(m.group(1)) : version;
+            int v = version;
+            if (m.find()) try { v = Integer.parseInt(m.group(1)); } catch (NumberFormatException ignored) { /* keep the requested version */ }
             if (call("DELETE", "integrations/events/unsubscribe", obj("event_type", eventType, "event_version", v)).status() != 200) break;
             replaced++;
             res = call("PUT", "integrations/events/subscribe", body);
@@ -128,12 +153,16 @@ public final class ParspecClient {
     public void fail(Signature.ParsedEvent evt, String message) { fail(evt.transactionId(), evt.callbackUrl(), message); }
 
     public void fail(String transactionId, String callbackUrl, String message) {
-        sendCallback(transactionId, callbackUrl, "error", Map.of("errorMessage", message));
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("errorMessage", message);
+        sendCallback(transactionId, callbackUrl, "error", fields);
     }
 
     private void sendCallback(String transactionId, String callbackUrl, String status, Map<String, Object> fields) {
-        Map<String, Object> body = obj("EventTransactionID", transactionId, "EventStatus", status);
-        if (fields != null) body.putAll(fields);
+        // The SDK's two fields last, so a caller's fields cannot forge them.
+        Map<String, Object> body = fields == null ? new LinkedHashMap<>() : new LinkedHashMap<>(fields);
+        body.put("EventTransactionID", transactionId);
+        body.put("EventStatus", status);
         Response r = call("POST", callbackUrl == null || callbackUrl.isEmpty() ? DEFAULT_CALLBACK : callbackUrl, body);
         if (r.status() < 200 || r.status() >= 300)
             throw new ParspecApiException("callback failed: " + r.status() + " " + trim(r.body()), r.status(), r.body());
