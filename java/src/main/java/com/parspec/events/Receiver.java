@@ -1,9 +1,12 @@
 package com.parspec.events;
 
+import com.sun.net.httpserver.HttpHandler;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.function.BiConsumer;
 
 // Register a function per event type; the SDK verifies, routes, dedupes and calls back.
@@ -162,5 +165,48 @@ public final class Receiver {
         Accepted r = accept(rawBody, signature, idempotencyKey);
         r.process().run();
         return r.status();
+    }
+
+    private static final int MAX_BODY = 5 << 20;
+
+    // A handler for the JDK's built-in server: answers PM and runs the event's function on `work`, so a slow
+    // ERP call never holds up the server's request threads. Size the pool for how many events may run at once.
+    //   ExecutorService work = Executors.newFixedThreadPool(8);
+    //   HttpServer server = HttpServer.create(new InetSocketAddress(3000), 0);
+    //   server.createContext("/parspec/webhook", receiver.httpHandler(work));
+    //   server.start();
+    public HttpHandler httpHandler(Executor work) {
+        if (work == null) throw new IllegalArgumentException("an executor for the event functions is required");
+        return exchange -> {
+            try (exchange) {
+                if (!"POST".equals(exchange.getRequestMethod())) {
+                    exchange.getResponseHeaders().set("Allow", "POST");
+                    exchange.sendResponseHeaders(405, -1);
+                    return;
+                }
+                byte[] raw = exchange.getRequestBody().readNBytes(MAX_BODY + 1);
+                if (raw.length > MAX_BODY) { exchange.sendResponseHeaders(413, -1); return; }
+                var headers = exchange.getRequestHeaders();
+                Accepted r;
+                try {
+                    r = accept(raw, headers.getFirst("X-Signature"), headers.getFirst("Idempotency-Key"));
+                } catch (RuntimeException e) {   // a failing key or transaction store: answer 500, report it
+                    exchange.sendResponseHeaders(500, -1);
+                    onError.accept(e, new EventContext(null, null, null));
+                    return;
+                }
+                if (r.status() == 200 && !r.duplicate()) {   // only a newly claimed event has work to run
+                    try {
+                        work.execute(r.process());
+                    } catch (RejectedExecutionException e) {   // pool full or shut down: tell PM it failed, not that it's done
+                        transactions.release(r.transactionId());
+                        exchange.sendResponseHeaders(503, -1);
+                        onError.accept(e, new EventContext(r.eventType(), r.transactionId(), null));
+                        return;
+                    }
+                }
+                exchange.sendResponseHeaders(r.status(), -1);
+            }
+        };
     }
 }

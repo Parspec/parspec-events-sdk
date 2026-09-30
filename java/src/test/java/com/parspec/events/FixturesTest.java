@@ -219,6 +219,70 @@ public final class FixturesTest {
             require(!t.claim("a"), "done");
         });
 
+        check("client: local and uat environments", () -> {
+            require("http://127.0.0.1:4800/platform-api/api/v1/".equals(ParspecClient.ENVIRONMENTS.get("local")), "local");
+            require(ParspecClient.ENVIRONMENTS.get("preprod").equals(ParspecClient.ENVIRONMENTS.get("uat")), "uat is preprod");
+        });
+        check("receiver: httpHandler answers PM before the function runs, over real HTTP", () -> {
+            Map<String, Object> c = load("receiver.json").get(0);
+            Map<String, Object> d = ((List<Map<String, Object>>) c.get("deliveries")).get(0);
+            List<Call> sent = java.util.Collections.synchronizedList(new ArrayList<>());
+            TestStores stores = new TestStores(c);
+            java.util.concurrent.CountDownLatch gate = new java.util.concurrent.CountDownLatch(1);
+            Receiver receiver = new Receiver(new ParspecClient("k", BASE, fake(sent, List.of())), stores, stores, null)
+                .on("inventory.fetchPrice", (e, ctx) -> { gate.await(5, java.util.concurrent.TimeUnit.SECONDS); return null; });
+            // The server keeps its default executor (one thread): with the function waiting on the gate, the
+            // next requests only get answered because the work runs on `work`, not on the request thread.
+            java.util.concurrent.ExecutorService work = java.util.concurrent.Executors.newFixedThreadPool(2);
+            var server = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+            server.createContext("/parspec/webhook", receiver.httpHandler(work));
+            server.start();
+            var http = java.net.http.HttpClient.newHttpClient();
+            java.net.URI url = java.net.URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/parspec/webhook");
+            try {
+                java.util.function.Function<String, Integer> post = body -> {
+                    try {
+                        return http.send(java.net.http.HttpRequest.newBuilder(url).header("X-Signature", (String) d.get("signature"))
+                            .POST(java.net.http.HttpRequest.BodyPublishers.ofString(body)).build(), java.net.http.HttpResponse.BodyHandlers.discarding()).statusCode();
+                    } catch (Exception e) { throw new RuntimeException(e); }
+                };
+                require(post.apply((String) d.get("body")) == 200, "answered while the function is still waiting");
+                require(post.apply((String) d.get("body")) == 200, "the next request is answered while the function still waits");
+                require(sent.isEmpty(), "no callback before the function returns");
+                gate.countDown();
+                for (int i = 0; i < 100 && sent.isEmpty(); i++) Thread.sleep(10);
+                require(!sent.isEmpty() && "success".equals(((Map<String, Object>) sent.get(0).body()).get("EventStatus")), "callback sent");
+                require(post.apply((String) d.get("body")) == 200, "duplicate acknowledged");
+                require(post.apply(((String) d.get("body")).replace("\"data\":", "\"data\" :")) == 401, "tampered");
+                int get = http.send(java.net.http.HttpRequest.newBuilder(url).GET().build(), java.net.http.HttpResponse.BodyHandlers.discarding()).statusCode();
+                require(get == 405, "GET: " + get);
+            } finally {
+                server.stop(0);
+                work.shutdownNow();
+            }
+        });
+        check("receiver: httpHandler answers 503 and releases the claim when the work pool rejects", () -> {
+            Map<String, Object> c = load("receiver.json").get(0);
+            Map<String, Object> d = ((List<Map<String, Object>>) c.get("deliveries")).get(0);
+            TestStores stores = new TestStores(c);
+            List<Exception> errors = new ArrayList<>();
+            Receiver receiver = new Receiver(new ParspecClient("k", BASE, fake(new ArrayList<>(), List.of())), stores, stores, (e, ctx) -> errors.add(e))
+                .on("inventory.fetchPrice", (e, ctx) -> null);
+            java.util.concurrent.ExecutorService work = java.util.concurrent.Executors.newSingleThreadExecutor();
+            work.shutdown();   // rejects everything
+            var server = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+            server.createContext("/parspec/webhook", receiver.httpHandler(work));
+            server.start();
+            try {
+                var req = java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/parspec/webhook"))
+                    .header("X-Signature", (String) d.get("signature")).POST(java.net.http.HttpRequest.BodyPublishers.ofString((String) d.get("body"))).build();
+                int status = java.net.http.HttpClient.newHttpClient().send(req, java.net.http.HttpResponse.BodyHandlers.discarding()).statusCode();
+                require(status == 503, "status " + status);
+                require(stores.processing.isEmpty() && stores.done.isEmpty(), "claim released, so a resend can run");
+                require(errors.size() == 1 && errors.get(0) instanceof java.util.concurrent.RejectedExecutionException, "reported " + errors);
+            } finally { server.stop(0); }
+        });
+
         System.out.println(pass + " passed, " + fail + " failed");
         System.exit(fail == 0 ? 0 : 1);
     }

@@ -19,7 +19,9 @@ public final class ParspecClient {
     public static final Map<String, String> ENVIRONMENTS = Map.of(
         "production", "https://platform.parspec.io/platform-api/api/v1/",
         "sandbox", "https://platform-sandbox.parspec.io/platform-api/api/v1/",
-        "preprod", "https://uat-platform.parspec.io/platform-api/api/v1/");
+        "preprod", "https://uat-platform.parspec.io/platform-api/api/v1/",
+        "uat", "https://uat-platform.parspec.io/platform-api/api/v1/",
+        "local", "http://127.0.0.1:4800/platform-api/api/v1/");   // the playground: node harness/playground.js
     private static final String DEFAULT_CALLBACK = "integrations/events/callback";
     private static final Pattern ABSOLUTE = Pattern.compile("https?://", Pattern.CASE_INSENSITIVE);
     private static final Pattern NAMED_VERSION = Pattern.compile("version\\s+'?(\\d+)'?", Pattern.CASE_INSENSITIVE);

@@ -8,7 +8,7 @@ Copy `src/main/java/com/parspec/events/` into your project.
 import com.parspec.events.*;
 
 ParspecClient client = new ParspecClient(apiKey, "sandbox");
-String publicKey = client.subscribe("tandemOrder.publishToErp", 1, "https://your-host/webhook").publicKey();
+String publicKey = client.subscribe("salesOrder.publishToErp", 1, "https://your-host/webhook").publicKey();
 
 // Spring Boot: take the body as byte[] so the signature is checked against the exact bytes PM sent.
 @PostMapping("/webhook")
@@ -33,14 +33,20 @@ Register a function per event type; the receiver verifies, routes, deduplicates 
 ```java
 Receiver.KeyStore envKeys = () -> parseJson(System.getenv("PARSPEC_KEYS"));   // read-only: env vars
 Receiver receiver = new Receiver(new ParspecClient(apiKey, "sandbox"), envKeys, myTransactions, null)   // TransactionStore: Postgres, Redis
-    .on("tandemOrder.publishToErp", (event, ctx) -> {
+    .on("salesOrder.publishToErp", (event, ctx) -> {
         String orderId = erp.createSalesOrder(event.event().get("data"), ctx.transactionId());   // idempotency key
         return Map.of("orderId", orderId);   // throw to send an error callback
     });
 
 Map<String, String> newKeys = receiver.subscribe("https://erp.example/parspec/webhook");   // store these
 
-// Spring Boot: raw body, answer first, then process.
+// The JDK's built-in server: the receiver reads the raw body, answers PM, then runs your function on `work`.
+ExecutorService work = Executors.newFixedThreadPool(8);   // how many events may run at once
+HttpServer server = HttpServer.create(new InetSocketAddress(3000), 0);
+server.createContext("/parspec/webhook", receiver.httpHandler(work));
+server.start();
+
+// Spring Boot (or any framework): raw body, answer first, then process.
 @PostMapping("/parspec/webhook")
 public ResponseEntity<Void> webhook(@RequestBody byte[] body,
                                     @RequestHeader(value = "X-Signature", required = false) String sig,
@@ -51,7 +57,7 @@ public ResponseEntity<Void> webhook(@RequestBody byte[] body,
 }
 ```
 
-`Receiver.MemoryKeyStore` and `Receiver.MemoryTransactionStore` are the in-memory versions for development. Implement `WritableKeyStore` if `subscribe()` should save keys itself. The receiver is thread-safe to share once its handlers are registered.
+`new ParspecClient(apiKey, "local")` points at the playground; `"sandbox"`, `"uat"` and `"production"` at PM. `Receiver.MemoryKeyStore` and `Receiver.MemoryTransactionStore` are the in-memory versions for development. Implement `WritableKeyStore` if `subscribe()` should save keys itself. The receiver is thread-safe to share once its handlers are registered.
 
 ## Use as a git submodule
 
