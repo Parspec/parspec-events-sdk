@@ -15,33 +15,41 @@ const client = createClient({ apiKey: process.env.PARSPEC_API_KEY, environment: 
 const keys = {};          // eventType -> publicKey
 const seen = new Set();   // use your database in production: dedup must survive restarts
 
-http.createServer((req, res) => {
+const server = http.createServer((req, res) => {
   const chunks = [];
   req.on('data', c => chunks.push(c));
-  req.on('end', async () => {
-    const raw = Buffer.concat(chunks);
-    // Several events can share one URL; the key that verifies identifies the event.
-    const match = Object.entries(keys).find(([, k]) => verify(raw, req.headers['x-signature'], k));
-    if (!match) { console.log('rejected: signature did not verify'); res.writeHead(401).end(); return; }
-    const [eventType, key] = match;
-    const { event, transactionId } = parseEvent(raw, req.headers, key);
-    res.writeHead(200).end();   // acknowledge first, work after
-    if (seen.has(transactionId)) { console.log(`duplicate ${eventType} ${transactionId}, skipped`); return; }
-    seen.add(transactionId);
-    try {
-      const orderId = `SO-${transactionId.slice(0, 8)}`;   // your ERP call goes here
-      await client.callback(event, { orderId });
-      console.log(`${eventType} ${transactionId} → callback sent (orderId ${orderId})`);
-    } catch (e) {
-      console.error(`${eventType} ${transactionId} failed: ${e.message}`);
-      await client.fail(event, e.message).catch(console.error);
-    }
-  });
-}).listen(port, async () => {
+  req.on('end', () => handle(Buffer.concat(chunks), req, res).catch(e => {
+    console.error(`request failed: ${e.message}`);
+    if (!res.headersSent) res.writeHead(400).end();
+  }));
+});
+
+async function handle(raw, req, res) {
+  // Several events can share one URL; the key that verifies identifies the event.
+  const match = Object.entries(keys).find(([, k]) => verify(raw, req.headers['x-signature'], k));
+  if (!match) { console.log('rejected: signature did not verify'); res.writeHead(401).end(); return; }
+  const [eventType, key] = match;
+  const { event, transactionId } = parseEvent(raw, req.headers, key);
+  res.writeHead(200).end();   // acknowledge first, work after
+  if (seen.has(transactionId)) { console.log(`duplicate ${eventType} ${transactionId}, skipped`); return; }
+  seen.add(transactionId);
+  try {
+    const orderId = `SO-${transactionId.slice(0, 8)}`;   // your ERP call goes here
+    await client.callback(event, { orderId });
+    console.log(`${eventType} ${transactionId} → callback sent (orderId ${orderId})`);
+  } catch (e) {
+    console.error(`${eventType} ${transactionId} failed: ${e.message}`);
+    await client.fail(event, e.message).catch(console.error);
+  }
+}
+
+server.listen(port, async () => {
   console.log(`receiver on ${publicUrl}/webhook`);
   for (const spec of (process.env.PARSPEC_EVENTS || '').split(',').filter(Boolean)) {
     const [eventType, version = '1'] = spec.split(':');
-    keys[eventType] = (await client.subscribe(eventType, Number(version), `${publicUrl}/webhook`)).publicKey;
-    console.log(`subscribed ${eventType} v${version}`);
+    try {
+      keys[eventType] = (await client.subscribe(eventType, Number(version), `${publicUrl}/webhook`)).publicKey;
+      console.log(`subscribed ${eventType} v${version}`);
+    } catch (e) { console.error(`subscribe ${eventType} failed: ${e.message}`); }
   }
 });
