@@ -1,0 +1,118 @@
+{
+  "eventType": "tandemBilling.submitToErp",
+  "version": 1,
+  "delivery": {
+    "eventTransactionID": "9c86c612-a743-45d9-9105-d74fbd8e749a",
+    "callback_url": "integrations/events/callback",
+    "data": {
+      "vendorInvoice": {
+        "apBranchErpId": "2464",
+        "approved": false,
+        "approvedAmount": "1188.00",
+        "approvedAt": null,
+        "approvedBy": {
+          "erpId": "",
+          "id": null
+        },
+        "bomId": 156356,
+        "breakoutId": 6501,
+        "createdAt": "2026-01-15T18:19:47.587516+00:00",
+        "createdBy": {
+          "erpId": "ERP-DEMO",
+          "id": 3076
+        },
+        "deductionAmount": "0.00",
+        "deductionReason": "",
+        "dueDate": "2026-02-14",
+        "entryDate": "2026-01-15",
+        "erpId": "VINV-PO-ERP-777B1195-R1",
+        "freightAmount": "0.00",
+        "id": 691,
+        "invoiceDate": "2026-01-15",
+        "lineItems": [
+          {
+            "description": "",
+            "extendedCostAmount": "1188.00",
+            "extendedDiscountedCostAmount": "1188.00",
+            "extendedSellPriceAmount": "0.00",
+            "id": 49,
+            "lastUpdatedAt": "2026-01-15T18:19:47.556794+00:00",
+            "lotId": null,
+            "manufacturerErpId": "",
+            "manufacturerName": "",
+            "marginPercentage": 0,
+            "modelNumber": "DEMO-100",
+            "pricingPer": 1,
+            "productErpId": "",
+            "productLineId": null,
+            "quantity": 12,
+            "quantityReconciled": 0,
+            "reconciledExtendedDiscountedCostAmount": "0.00",
+            "releaseNumber": null,
+            "status": "",
+            "stockLocationErpId": "",
+            "type": "",
+            "unitCostAmount": "99.00",
+            "unitDiscountedCostAmount": "99.00",
+            "unitSellPriceAmount": "0.00",
+            "uom": "EA",
+            "uomQuantity": 1
+          }
+        ],
+        "notes": "",
+        "opportunityId": 58720,
+        "paid": false,
+        "paidAmount": null,
+        "paidDate": null,
+        "payTo": {
+          "address": {
+            "addressLine1": "",
+            "addressLine2": "",
+            "city": "Springfield",
+            "countryCode": "US",
+            "name": "",
+            "postalCode": "00100",
+            "stateOrRegionCode": ""
+          },
+          "erpId": "INT-MFG-00006-PAYTO"
+        },
+        "paymentScheduledDate": "2026-02-14",
+        "paymentTermsCode": "NET30",
+        "paymentTermsDescription": "Net 30 Days",
+        "projectId": 332324,
+        "purchaseOrder": {
+          "erpId": "PO-ERP-777B1195",
+          "id": 6964
+        },
+        "reconciledAmount": "1350.00",
+        "reconciliationStatus": "RECONCILED",
+        "shipFrom": {
+          "address": {
+            "addressLine1": "",
+            "addressLine2": "",
+            "city": "Springfield",
+            "countryCode": "US",
+            "name": "",
+            "postalCode": "00100",
+            "stateOrRegionCode": ""
+          },
+          "erpId": "INT-MFG-00006-SHIPFROM"
+        },
+        "shipTo": {},
+        "status": "DRAFT",
+        "subtotalAmount": "1188.00",
+        "taxAmount": "0.00",
+        "totalAmount": "1188.00",
+        "updatedAt": "2026-01-15T18:21:58.583052+00:00",
+        "vendorInvoiceNumber": "VINV-PO-ERP-777B1195-R1",
+        "workflowState": "SUBMITTED"
+      }
+    }
+  },
+  "callback": {
+    "data": {
+      "approved": true,
+      "vendorInvoiceErpId": "VINV-PO-ERP-777B1195-R1"
+    }
+  }
+}
