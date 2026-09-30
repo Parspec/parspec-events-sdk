@@ -2,13 +2,13 @@
 
 Subscribe to Parspec PM events, verify webhook signatures, and send callbacks. .NET 8+, no dependencies.
 
-Add `Parspec.Events/` to your solution (`dotnet add reference path/to/Parspec.Events`), or copy `ParspecEvents.cs` into your project.
+Add `Parspec.Events/` to your solution (`dotnet add reference path/to/Parspec.Events`), or copy `ParspecEvents.cs` into your project. For the ASP.NET Core endpoint, also add `Parspec.Events.AspNetCore/`; the core package does not depend on ASP.NET Core.
 
 ```csharp
 using Parspec.Events;
 
 var client = new ParspecClient(apiKey, environment: "sandbox");
-var sub = await client.SubscribeAsync("tandemOrder.publishToErp", 1, "https://your-host/webhook");
+var sub = await client.SubscribeAsync("salesOrder.publishToErp", 1, "https://your-host/webhook");
 
 // ASP.NET Core minimal API: read the raw body so the signature is checked against the exact bytes PM sent.
 app.MapPost("/webhook", async (HttpRequest req) =>
@@ -32,6 +32,9 @@ app.MapPost("/webhook", async (HttpRequest req) =>
 Register a function per event type; the receiver verifies, routes, deduplicates and calls back. How it works, and how to store keys and transactions in production: [PROTOCOL.md](../PROTOCOL.md#the-receiver-and-where-to-store-things).
 
 ```csharp
+using Parspec.Events;
+using Parspec.Events.AspNetCore;   // MapParspecWebhook
+
 // Read-only key store from configuration (env vars, appsettings, Key Vault via IConfiguration).
 sealed class ConfigKeys(IConfiguration config) : IKeyStore
 {
@@ -42,7 +45,7 @@ sealed class ConfigKeys(IConfiguration config) : IKeyStore
 
 var receiver = new Receiver(new ParspecClient(apiKey, environment: "sandbox"),
         new ConfigKeys(builder.Configuration), myTransactions)   // ITransactionStore, e.g. Postgres or Redis
-    .On("tandemOrder.publishToErp", async (evt, ctx, ct) =>
+    .On("salesOrder.publishToErp", async (evt, ctx, ct) =>
     {
         var so = await erp.CreateSalesOrderAsync(evt.Event.GetProperty("data"), idempotencyKey: ctx.TransactionId, ct);
         return new Dictionary<string, object?> { ["orderId"] = so.Id };   // throw to send an error callback
@@ -50,16 +53,11 @@ var receiver = new Receiver(new ParspecClient(apiKey, environment: "sandbox"),
 
 var newKeys = await receiver.SubscribeAsync("https://erp.example/parspec/webhook");   // store these
 
-// ASP.NET Core: raw body, answer first, then process.
-app.MapPost("/parspec/webhook", async (HttpRequest req) =>
-{
-    using var ms = new MemoryStream();
-    await req.Body.CopyToAsync(ms);
-    var r = await receiver.AcceptAsync(ms.ToArray(), req.Headers["X-Signature"], req.Headers["Idempotency-Key"]);
-    _ = Task.Run(r.Process);   // or hand it to a background queue (IHostedService)
-    return Results.StatusCode(r.Status);
-});
+// ASP.NET Core (Parspec.Events.AspNetCore): the receiver reads the raw body, answers PM, then runs your function.
+app.MapParspecWebhook("/parspec/webhook", receiver);
 ```
+
+`environment: "local"` points at the playground; `"sandbox"`, `"uat"` and `"production"` at PM. In another pipeline, `receiver.HandleHttpAsync(httpContext)` does the same; outside ASP.NET Core, call `AcceptAsync`, answer with `Status`, then await `Process()`.
 
 `MemoryKeyStore` and `MemoryTransactionStore` are the in-memory versions for development. Implement `IWritableKeyStore` if `SubscribeAsync` should save keys itself. `onError` is called when a handler or callback fails.
 
@@ -70,6 +68,7 @@ The `csharp` branch of this repo holds only this SDK, so it can be added to your
 ```
 git submodule add -b csharp <repo-url> vendor/parspec-events
 dotnet add reference vendor/parspec-events/csharp/Parspec.Events/Parspec.Events.csproj
+dotnet add reference vendor/parspec-events/csharp/Parspec.Events.AspNetCore/Parspec.Events.AspNetCore.csproj   # ASP.NET Core endpoint
 ```
 
 Pull updates with `git submodule update --remote`. Your project stays on the commit it has until you do.
@@ -105,7 +104,7 @@ Headers: `X-Signature` (base64 RSA-SHA256 over the raw body) and, when present, 
 
 **3. Verify** the signature against the raw request bytes before doing anything else. Re-serialized JSON will not verify. Reject anything that fails.
 
-**4. Acknowledge** with a 200 right away, then do the work.
+**4. Acknowledge** with a 200 right away, then do the work. PM gives up on the delivery after 10 seconds.
 
 **5. Deduplicate** on `eventTransactionID`. The same event can arrive more than once. Anything you send back, such as an order number, must stay the same across repeat deliveries: PM rejects duplicate orders.
 
@@ -116,7 +115,9 @@ POST {base}/{callback_url}
 { "EventTransactionID": "...", "EventStatus": "success", "orderId": "SO-123" }
 ```
 
-On failure, send `"EventStatus": "error"` with an `errorMessage`. PM shows that message to the user (a failed credit check, for example).
+On failure, send `"EventStatus": "error"` with an `errorMessage`. PM shows that message to the user (a failed credit check, for example). `inventory.fetchPrice` is the exception: the user sees a generic "Unable to fetch inventory prices".
+
+Timing: for events that need a reply, the user's screen waits up to 5 minutes for your callback, then reports a timeout. PM accepts one callback per transaction, within 10 minutes of the delivery; a second callback, or a late one, gets a 400 "Invalid transaction ID". What goes in each callback: [Callbacks, event by event](#callbacks-event-by-event).
 
 `callback_url` is a path relative to the base URL; every delivery PM has sent uses `integrations/events/callback`. The API key goes with every callback, so the SDKs send it only to the configured PM host: an absolute `callback_url` on any other host is refused, and nothing is sent.
 
@@ -132,9 +133,62 @@ On failure, send `"EventStatus": "error"` with an `errorMessage`. PM shows that 
 |---|---|
 | production | `https://platform.parspec.io/platform-api/api/v1/` |
 | sandbox | `https://platform-sandbox.parspec.io/platform-api/api/v1/` |
-| preprod | `https://uat-platform.parspec.io/platform-api/api/v1/` |
+| preprod (or `uat`) | `https://uat-platform.parspec.io/platform-api/api/v1/` |
+| local | `http://127.0.0.1:4800/platform-api/api/v1/`: the playground on your machine, `node harness/playground.js` |
 
-Event types, versions and payloads: developer.parspec.io.
+Every SDK takes these names as its environment, so moving from the playground to sandbox, UAT or production means changing the environment and the API key, nothing else.
+
+## Exposing your webhook
+
+Your webhook is one POST route. Each SDK has a handler that does everything behind it: reads the raw body, verifies the signature, deduplicates, answers PM, runs your function for that event, and sends the callback. You write the event functions and mount the handler:
+
+| Language | Handler | Mount it |
+|---|---|---|
+| Node | `receiver.handler()` | `http.createServer(receiver.handler())`, or `app.post('/parspec/webhook', receiver.handler())` in Express |
+| Python | `receiver.wsgi()`, `receiver.asgi()` | Flask/Django through WSGI; FastAPI/Starlette: `app.add_route("/parspec/webhook", receiver.asgi(), methods=["POST"])` |
+| C# | `MapParspecWebhook` (package `Parspec.Events.AspNetCore`) | `app.MapParspecWebhook("/parspec/webhook", receiver)` |
+| Java | `receiver.httpHandler(executor)` | `server.createContext("/parspec/webhook", receiver.httpHandler(work))` on the JDK's `HttpServer`; Spring: a short `accept`/`process` controller in the Java README |
+
+PM must be able to reach the route: publish it on a public HTTPS hostname through your load balancer or reverse proxy (nginx, Caddy). For testing against sandbox from your machine, a tunnel (ngrok, Tailscale Funnel) works. Pass that public URL to `subscribe`.
+
+Three things the handlers take care of, if you wire up `accept` yourself instead:
+- **Raw body.** Hand over the bytes exactly as received. A framework's JSON body parser re-serializes the body and the signature no longer verifies.
+- **Answer first.** Send the status from `accept`, then call `process`. PM waits only 10 seconds for the answer; your ERP call can take longer.
+- **Keep running after the answer.** `process` runs after the response is sent. On serverless platforms (Lambda, Cloud Functions), work after the response can be cut off: put the event on a queue in the webhook, and call `process` from a worker.
+
+Event types, versions and payloads: developer.parspec.io. A sanitized delivery for every event, with the callback that goes with it, is in `fixtures/samples/`.
+
+## Callbacks, event by event
+
+PM reads these top-level fields from a callback and ignores everything else: `EventTransactionID`, `EventStatus`, `errorMessage`, `orderId`, `projectErpId`, `metadata` and `data` (an object). A field you put anywhere else is silently dropped.
+
+Each file in `fixtures/samples/` has a `callback` key: the fields a working integration sent back for that delivery. Start from it. The rules below come from callbacks PM accepted in sandbox.
+
+**The ERP mints the ids.** Where a delivery has an empty ERP id (`salesOrderErpLineId: ""`), the callback fills it in. Where a callback returns lines or lots, echo each one as delivered and add the ids; PM matches them on `bomLineId`, `breakoutLineId` and the lot `id`.
+
+**Ids must be stable.** Return the same order number every time for the same quote, BOM or order. PM rejects duplicate orders, and a user who resends after a timeout arrives with a new `eventTransactionID`.
+
+| Event | Callback | Without it |
+|---|---|---|
+| `quote.created`, `quote.updated` (v2) | Plain success, no fields. | Nothing changes in PM. |
+| `quote.publishToOrderSystem`, `bom.publishToOrderSystem` (v2) | `orderId`, `projectErpId`. | The order number never shows on the quote or BOM. |
+| `tandemOrder.publishToErp` | `data`: `salesOrderErpId`, `purchaseOrderErpId`, `lineItems[]` with `salesOrderErpLineId` and `purchaseOrderErpLineId`, `pricingAggregates`. No `orderId`. | The order never appears. |
+| `tandemOrder.orderRelease` | Same shape as `tandemOrder.publishToErp`; mint line ids that are missing. | The released version never appears. |
+| `changeOrder.publishToErp` | `orderId` (the PO's ERP id), `data`: `salesOrder` and `purchaseOrder` as `{ erpId, result }`, `lineItems[]` and `pricingAggregates.lots[]` each with `result`. `result` is `UPDATED`, or `CREATED` for a line that had no ERP ids. | The updated PO never appears. |
+| `receivingTicket.publishToErp`, `deliveryTicket.publishToErp` | `orderId` and `data.receivingTicketErpId` (or `deliveryTicketErpId`), `lineItems[]` with `receivingTicketErpLineId` (or `deliveryTicketErpLineId`). Lines arrive under `data.receivingTicket.lineItems`, not `data.lineItems`. | "Receiving ticket creation failed because the ERP did not return a ticket ID." |
+| `receivingTicket.updateToErp`, `deliveryTicket.updateToErp` | The ticket's ERP id and `ticketAction`; each line's action in the past tense (`CANCEL` → `CANCELLED`). Receiving lines put it in `status` and carry `receivingTicketLineId`; delivery lines put it in `lineAction` and keep `id`. New lines get ERP line ids. Not yet confirmed in sandbox. | |
+| `adjustmentRequest.publishToErp` | `data`: `customerReturnErpId` and/or `vendorReturnErpId`, and the same ids on every entry of `credits`, `debits`, `lineItems` and `pricingAggregates.lots`. | |
+| `adjustmentRequest.updateToErp` | `data`: `customerReturn` and `vendorReturn` as `{ id, erpId, result }`, and `result` on each line and lot. | |
+| `inventory.fetchPrice` (v2) | `data.items[]`: see below. | PM keeps the line's existing price. |
+| `tandemBilling.submitToErp` | `data`: `vendorInvoiceErpId`, `approved`. | |
+| `purchaseOrder.publishToErp`, `salesOrder.publishToErp` | `orderId`, `data`: `purchaseOrderErpId` (or `salesOrderErpId`), `lineItems[]` with the ERP line id. Not yet confirmed in sandbox. | |
+
+**`inventory.fetchPrice` (v2).** Return one entry per item you have a price for, echoing the delivered item and adding:
+- `unitCost`, `unitSellPrice` and optionally `unitDiscountedCost`, each `{ "amount": "12.3400" }`: a decimal string in dollars, at most 4 decimal places. PM rejects more.
+- `sellingUom`, `sellingUomConversionFactor` and `pricingPer` for the unit the returned price is in. PM writes them back to the line and computes `quantity × sellingUomConversionFactor × unitCost.amount / pricingPer`.
+- `quantity` (on hand), `stockLocationErpId` and `stockLocationName`.
+
+Echo `manufacturerName` and `manufacturerErpId` exactly as delivered: a mismatch rejects the whole callback. Leave out an item you have no price for, or whose cost or sell price is zero; never return `0.0000`.
 
 ## The receiver, and where to store things
 

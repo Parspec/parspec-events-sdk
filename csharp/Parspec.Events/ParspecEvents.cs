@@ -73,6 +73,8 @@ public sealed class ParspecClient
         ["production"] = "https://platform.parspec.io/platform-api/api/v1/",
         ["sandbox"] = "https://platform-sandbox.parspec.io/platform-api/api/v1/",
         ["preprod"] = "https://uat-platform.parspec.io/platform-api/api/v1/",
+        ["uat"] = "https://uat-platform.parspec.io/platform-api/api/v1/",
+        ["local"] = "http://127.0.0.1:4800/platform-api/api/v1/",   // the playground: node harness/playground.js
     }.AsReadOnly();
     const string DefaultCallback = "integrations/events/callback";
 

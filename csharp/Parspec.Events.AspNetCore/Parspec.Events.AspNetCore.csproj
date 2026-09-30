@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>Parspec.Events.AspNetCore</PackageId>
+    <Version>0.1.0</Version>
+    <Description>ASP.NET Core endpoint for Parspec PM webhook events: app.MapParspecWebhook("/parspec/webhook", receiver).</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../Parspec.Events/Parspec.Events.csproj" />
+  </ItemGroup>
+</Project>

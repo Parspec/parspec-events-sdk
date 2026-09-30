@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Parspec.Events/Parspec.Events.csproj" />
+    <ProjectReference Include="../Parspec.Events.AspNetCore/Parspec.Events.AspNetCore.csproj" />
   </ItemGroup>
 </Project>
