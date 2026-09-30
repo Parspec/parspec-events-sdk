@@ -1,49 +1,49 @@
 [
   {
     "name": "valid",
-    "body": "{\"eventTransactionID\":\"ae18e0a9-5db2-40a0-9ee9-19811d9944d0\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"project\":{\"id\":1001,\"erpId\":\"PRJ-1\",\"name\":\"Demo Project\"},\"purchaseOrder\":{\"erpId\":\"\",\"releaseType\":\"release\",\"version\":1},\"lineItems\":[{\"bomLineId\":1,\"modelNumber\":\"DEMO-100\",\"quantity\":5}]}}",
-    "signature": "jwizP6blvxw/q1ozOzEZARRHMVTZzvorhITAJNv54lBATHoh3E1VIoK1/ephYLcJA9l7RC7qyp9v5tARI+Fi6aeh2dRr6y5vXmR4h3fpguo8ZjhFLX7rC7U6Qucqz4upwzDvSbBo3gbEgLT8dd/+jFsU/nRsBzbZotU2GHN9Yu2k9kz7KP0pipR9aQ2OzS28QCN6B/TI0OMe0Ol1aC3E4YQ7CK384xKJ+norNBcIjZmjJs2aWkbEiv3gtMvpWeAxT/q4pg3R2Sqtrw8uRKfMg6EjISDmaeUyvdAMVLeUIQnMTsMmc6MMvDZ81OHUYwHCu7W6n38qKx1V1RzoKjl51A==",
+    "body": "{\"eventTransactionID\":\"87b3c007-2aa3-4e26-af39-dee403f1cae5\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"project\":{\"id\":1001,\"erpId\":\"PRJ-1\",\"name\":\"Demo Project\"},\"purchaseOrder\":{\"erpId\":\"\",\"releaseType\":\"release\",\"version\":1},\"lineItems\":[{\"bomLineId\":1,\"modelNumber\":\"DEMO-100\",\"quantity\":5}]}}",
+    "signature": "hU/WzGYXGY/EeSLHw7s72POT8SdlbhN5LoYfvN12vutj3HJnP7YjpS3uNkb89+5+mUKzsoTPY1yu12YbIS/Bq0MxZlQ4YGC+vr8/rCkHsW2IB9JKAl42s2WdH7I3H35Om3+APDZYcn3oeHtMttcJx6mEp/DaLnCr2jLGKbDOzIPwmUM9vwqws3fCZGFEw2916MZj0Au+um+mILhNDWLZCq8i/Hgcdpr7qTBLBAR6sIUnOvB1ZJalqSleL2AQpFT8dmPHpz61cvuOnmIVRcOT8qcOH1VmeW0gko3Wt9jIKIkjUjVXdRDKpQsVs/8JTlGRkVKGV+DtA5nY8hrG8gLAWA==",
     "key": "signer.pem",
     "valid": true
   },
   {
     "name": "valid, non-ASCII body",
-    "body": "{\"eventTransactionID\":\"3e9c0988-0fa6-41a9-bf89-04d8c9882020\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"ParspecJSON\":{\"Quote\":{\"ID\":\"1001-2002-1\",\"Status\":\"Won\"},\"Project\":{\"ID\":1001,\"Name\":\"Chantier Montréal — Phase 2\"}}}}",
-    "signature": "H0VcE/5Xsn5KLSuwAZSEgATgQJFXYxrRAx4GVpIOSFC4EY4e3nNL2CraFFlQsDs/JvLAAUz4AOHmkKJoDc6jXvkVHzGDSzpVuj8Wd3RpMyUSPNXRUC9E9r8MYBVcPeZSEruhVkPx0J5mE0KYj87kKnljvCuqRrRhfSWxo98ZMT7aUAcmD1L3xW+x5MdZuNWkpwKUJFhWtb/Rfy1VI3MfsTz5da3+v9ybh8wAatKWuY+hDOum/IQIlQHkFr2NxQiphJn3wNtywz5AuTRPLTcD7aepZD7HCux5X7hKzcqCvQEKIZFDc7037f/celN4hMT+oOc440F1er4UzYHuybNRrw==",
+    "body": "{\"eventTransactionID\":\"cfbe0fc6-236a-4158-9238-7b37f69abbc0\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"ParspecJSON\":{\"Quote\":{\"ID\":\"1001-2002-1\",\"Status\":\"Won\"},\"Project\":{\"ID\":1001,\"Name\":\"Chantier Montréal — Phase 2\"}}}}",
+    "signature": "hKDYAEeL5ERFUPJxo0xvqX/zniHhvK4jXORFIImopDoqQj03NIuoEckay+UjxubjWzHKUK3WuOf0CcaVJHTGOs+6xoKu6by7AJT3jya95KksJyIDscLSWyU/6UyDlvha0zGjVXfXnI3EstSU9H4uivfVtxE+EAMzb33Oc8VXWIBuc/FBbXwrlhqVuFryVTzhblzRMSPbX1rJl46yt/VPSKMRmj5fzM6sS+Nva01rGmpKP5dw+KFr3h7LzxpC9Of5oZJrWELjKvBIpL95xHsRVso5C68kVX69IyjxxKZp19f9u7yH6xglGCOLE6iUMefrAsxQaQeae+SbOmW/3iiz/Q==",
     "key": "signer.pem",
     "valid": true
   },
   {
     "name": "body tampered after signing",
-    "body": "{\"eventTransactionID\":\"ae18e0a9-5db2-40a0-9ee9-19811d9944d0\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"project\":{\"id\":1001,\"erpId\":\"PRJ-1\",\"name\":\"Demo Project\"},\"purchaseOrder\":{\"erpId\":\"\",\"releaseType\":\"release\",\"version\":1},\"lineItems\":[{\"bomLineId\":1,\"modelNumber\":\"DEMO-100\",\"quantity\":50}]}}",
-    "signature": "jwizP6blvxw/q1ozOzEZARRHMVTZzvorhITAJNv54lBATHoh3E1VIoK1/ephYLcJA9l7RC7qyp9v5tARI+Fi6aeh2dRr6y5vXmR4h3fpguo8ZjhFLX7rC7U6Qucqz4upwzDvSbBo3gbEgLT8dd/+jFsU/nRsBzbZotU2GHN9Yu2k9kz7KP0pipR9aQ2OzS28QCN6B/TI0OMe0Ol1aC3E4YQ7CK384xKJ+norNBcIjZmjJs2aWkbEiv3gtMvpWeAxT/q4pg3R2Sqtrw8uRKfMg6EjISDmaeUyvdAMVLeUIQnMTsMmc6MMvDZ81OHUYwHCu7W6n38qKx1V1RzoKjl51A==",
+    "body": "{\"eventTransactionID\":\"87b3c007-2aa3-4e26-af39-dee403f1cae5\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"project\":{\"id\":1001,\"erpId\":\"PRJ-1\",\"name\":\"Demo Project\"},\"purchaseOrder\":{\"erpId\":\"\",\"releaseType\":\"release\",\"version\":1},\"lineItems\":[{\"bomLineId\":1,\"modelNumber\":\"DEMO-100\",\"quantity\":50}]}}",
+    "signature": "hU/WzGYXGY/EeSLHw7s72POT8SdlbhN5LoYfvN12vutj3HJnP7YjpS3uNkb89+5+mUKzsoTPY1yu12YbIS/Bq0MxZlQ4YGC+vr8/rCkHsW2IB9JKAl42s2WdH7I3H35Om3+APDZYcn3oeHtMttcJx6mEp/DaLnCr2jLGKbDOzIPwmUM9vwqws3fCZGFEw2916MZj0Au+um+mILhNDWLZCq8i/Hgcdpr7qTBLBAR6sIUnOvB1ZJalqSleL2AQpFT8dmPHpz61cvuOnmIVRcOT8qcOH1VmeW0gko3Wt9jIKIkjUjVXdRDKpQsVs/8JTlGRkVKGV+DtA5nY8hrG8gLAWA==",
     "key": "signer.pem",
     "valid": false
   },
   {
     "name": "re-serialized body (parsed and pretty-printed)",
-    "body": "{\n  \"eventTransactionID\": \"ae18e0a9-5db2-40a0-9ee9-19811d9944d0\",\n  \"callback_url\": \"integrations/events/callback\",\n  \"data\": {\n    \"project\": {\n      \"id\": 1001,\n      \"erpId\": \"PRJ-1\",\n      \"name\": \"Demo Project\"\n    },\n    \"purchaseOrder\": {\n      \"erpId\": \"\",\n      \"releaseType\": \"release\",\n      \"version\": 1\n    },\n    \"lineItems\": [\n      {\n        \"bomLineId\": 1,\n        \"modelNumber\": \"DEMO-100\",\n        \"quantity\": 5\n      }\n    ]\n  }\n}",
-    "signature": "jwizP6blvxw/q1ozOzEZARRHMVTZzvorhITAJNv54lBATHoh3E1VIoK1/ephYLcJA9l7RC7qyp9v5tARI+Fi6aeh2dRr6y5vXmR4h3fpguo8ZjhFLX7rC7U6Qucqz4upwzDvSbBo3gbEgLT8dd/+jFsU/nRsBzbZotU2GHN9Yu2k9kz7KP0pipR9aQ2OzS28QCN6B/TI0OMe0Ol1aC3E4YQ7CK384xKJ+norNBcIjZmjJs2aWkbEiv3gtMvpWeAxT/q4pg3R2Sqtrw8uRKfMg6EjISDmaeUyvdAMVLeUIQnMTsMmc6MMvDZ81OHUYwHCu7W6n38qKx1V1RzoKjl51A==",
+    "body": "{\n  \"eventTransactionID\": \"87b3c007-2aa3-4e26-af39-dee403f1cae5\",\n  \"callback_url\": \"integrations/events/callback\",\n  \"data\": {\n    \"project\": {\n      \"id\": 1001,\n      \"erpId\": \"PRJ-1\",\n      \"name\": \"Demo Project\"\n    },\n    \"purchaseOrder\": {\n      \"erpId\": \"\",\n      \"releaseType\": \"release\",\n      \"version\": 1\n    },\n    \"lineItems\": [\n      {\n        \"bomLineId\": 1,\n        \"modelNumber\": \"DEMO-100\",\n        \"quantity\": 5\n      }\n    ]\n  }\n}",
+    "signature": "hU/WzGYXGY/EeSLHw7s72POT8SdlbhN5LoYfvN12vutj3HJnP7YjpS3uNkb89+5+mUKzsoTPY1yu12YbIS/Bq0MxZlQ4YGC+vr8/rCkHsW2IB9JKAl42s2WdH7I3H35Om3+APDZYcn3oeHtMttcJx6mEp/DaLnCr2jLGKbDOzIPwmUM9vwqws3fCZGFEw2916MZj0Au+um+mILhNDWLZCq8i/Hgcdpr7qTBLBAR6sIUnOvB1ZJalqSleL2AQpFT8dmPHpz61cvuOnmIVRcOT8qcOH1VmeW0gko3Wt9jIKIkjUjVXdRDKpQsVs/8JTlGRkVKGV+DtA5nY8hrG8gLAWA==",
     "key": "signer.pem",
     "valid": false
   },
   {
     "name": "signed with a different key (stale key after resubscribe)",
-    "body": "{\"eventTransactionID\":\"ae18e0a9-5db2-40a0-9ee9-19811d9944d0\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"project\":{\"id\":1001,\"erpId\":\"PRJ-1\",\"name\":\"Demo Project\"},\"purchaseOrder\":{\"erpId\":\"\",\"releaseType\":\"release\",\"version\":1},\"lineItems\":[{\"bomLineId\":1,\"modelNumber\":\"DEMO-100\",\"quantity\":5}]}}",
-    "signature": "NKmn249ekZIBUi6Zomxgr4Q/FpPUQ2gLO/mn2WHliPRbziRrZ1y2p6RUujRa28i16rP17WEpRZ7OmW2hNhFZe1espiYp38p+ZhekC5uYWSdFdJHwSjg0rRLB4llbXcg0MgIZKp0DNqCND2/0Lc7MNT2G/Lb1otsDoOzTGD+kGp2Mwg40pbDhTbUxdJEEtyvWlmE1HsNwS0G8zNRgd9UOfBKgpFfQMC7FkZkeszl3eaggIlXJmEW5ejh14YR8qxw9H6G1KQQ5MnXakvy4yGwlWRl7NrUNLtexOT70jhcAd2nXAbPw3Tt0bzD84w/+ZQ0Stka0nNdF4z8BqYcMxCG5Kw==",
+    "body": "{\"eventTransactionID\":\"87b3c007-2aa3-4e26-af39-dee403f1cae5\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"project\":{\"id\":1001,\"erpId\":\"PRJ-1\",\"name\":\"Demo Project\"},\"purchaseOrder\":{\"erpId\":\"\",\"releaseType\":\"release\",\"version\":1},\"lineItems\":[{\"bomLineId\":1,\"modelNumber\":\"DEMO-100\",\"quantity\":5}]}}",
+    "signature": "DoPgwNwgW/JOxkre9Z2VaIz00EBEFr6wPEJK06SErEoUuw/GDXYm7B1/U5pJxRzxU4/qyWyBNuQH+aLK377bAsH5A7lsb8f6lRgNsr38ISny5BPJUZxHEZMcWlDrhsZUnpJgDIU6CzHm50t3vQu4df3iGFq8v7T60461VgvXNbAjpgxd5FdaqLIN08nPYYdFhiR4UgmpTMGaLMI3SZ7SbJ4mvTfoCg1byB/gCbIUKUK9yzitG28DZXpMeoKV0nrMB36iG3Q68xBNH0zd/PxcYU1J8m3qc8wMCOG5YBX7KbzF/AN/SVaF4wM4CbJnI0QcvnKSd+9rYw1IbDSB1jFtTw==",
     "key": "signer.pem",
     "valid": false
   },
   {
     "name": "empty signature",
-    "body": "{\"eventTransactionID\":\"ae18e0a9-5db2-40a0-9ee9-19811d9944d0\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"project\":{\"id\":1001,\"erpId\":\"PRJ-1\",\"name\":\"Demo Project\"},\"purchaseOrder\":{\"erpId\":\"\",\"releaseType\":\"release\",\"version\":1},\"lineItems\":[{\"bomLineId\":1,\"modelNumber\":\"DEMO-100\",\"quantity\":5}]}}",
+    "body": "{\"eventTransactionID\":\"87b3c007-2aa3-4e26-af39-dee403f1cae5\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"project\":{\"id\":1001,\"erpId\":\"PRJ-1\",\"name\":\"Demo Project\"},\"purchaseOrder\":{\"erpId\":\"\",\"releaseType\":\"release\",\"version\":1},\"lineItems\":[{\"bomLineId\":1,\"modelNumber\":\"DEMO-100\",\"quantity\":5}]}}",
     "signature": "",
     "key": "signer.pem",
     "valid": false
   },
   {
     "name": "signature is not base64",
-    "body": "{\"eventTransactionID\":\"ae18e0a9-5db2-40a0-9ee9-19811d9944d0\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"project\":{\"id\":1001,\"erpId\":\"PRJ-1\",\"name\":\"Demo Project\"},\"purchaseOrder\":{\"erpId\":\"\",\"releaseType\":\"release\",\"version\":1},\"lineItems\":[{\"bomLineId\":1,\"modelNumber\":\"DEMO-100\",\"quantity\":5}]}}",
+    "body": "{\"eventTransactionID\":\"87b3c007-2aa3-4e26-af39-dee403f1cae5\",\"callback_url\":\"integrations/events/callback\",\"data\":{\"project\":{\"id\":1001,\"erpId\":\"PRJ-1\",\"name\":\"Demo Project\"},\"purchaseOrder\":{\"erpId\":\"\",\"releaseType\":\"release\",\"version\":1},\"lineItems\":[{\"bomLineId\":1,\"modelNumber\":\"DEMO-100\",\"quantity\":5}]}}",
     "signature": "%%%not-base64%%%",
     "key": "signer.pem",
     "valid": false

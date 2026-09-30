@@ -45,14 +45,22 @@ foreach (var c in Load("callbacks.json"))
 {
     await Check($"callback: {c!["name"]}", async () =>
     {
-        var handler = new FakeHandler([]);
+        var handler = new FakeHandler(c["response"] is JsonNode resp ? [resp] : []);
         var client = new ParspecClient("k", baseUrl: Base, http: new HttpClient(handler));
         var evt = c["event"]!;
         var txid = (string)evt["eventTransactionID"]!;
         var cb = (string?)evt["callback_url"];
-        if ((string)c["call"]! == "error") await client.FailAsync(txid, cb, (string)c["message"]!);
-        else await client.CallbackAsync(txid, cb, c["fields"]!.AsObject().ToDictionary(kv => kv.Key, kv => (object?)(string?)kv.Value));
+        var run = (string)c["call"]! == "error"
+            ? client.FailAsync(txid, cb, (string)c["message"]!)
+            : client.CallbackAsync(txid, cb, c["fields"]!.AsObject().ToDictionary(kv => kv.Key, kv => (object?)(string?)kv.Value));
         var exp = c["expect"]!;
+        if (exp["error"] is JsonNode err)
+        {
+            var status = 0;
+            try { await run; } catch (ParspecApiException e) { status = e.Status; }
+            Assert(status == (int)err, $"should throw with status {err}, got {status}");
+        }
+        else await run;
         Assert(handler.Calls.Count == 1, "one request");
         var got = handler.Calls[0];
         Assert(got.Method == (string)exp["method"]!, $"method {got.Method}");

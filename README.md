@@ -27,6 +27,17 @@ app.MapPost("/webhook", async (HttpRequest req) =>
 
 `evt.Event` is a `JsonElement`. To bind it to your own classes, deserialize the same raw bytes with `System.Text.Json` after verifying.
 
+## Use as a git submodule
+
+The `csharp` branch of this repo holds only this SDK, so it can be added to your project directly:
+
+```
+git submodule add -b csharp <repo-url> vendor/parspec-events
+dotnet add reference vendor/parspec-events/csharp/Parspec.Events/Parspec.Events.csproj
+```
+
+Pull updates with `git submodule update --remote`. Your project stays on the commit it has until you do.
+
 ## Tests
 
 ```
