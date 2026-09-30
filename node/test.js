@@ -73,7 +73,12 @@ test('client: constructor validation, environments, trailing slash, timeout', as
   await createClient({ apiKey: 'k', environment: 'sandbox', fetch }).callback({ eventTransactionID: 't' });
   await createClient({ apiKey: 'k', baseUrl: BASE.slice(0, -1), fetch }).callback({ eventTransactionID: 't' });
   assert.deepStrictEqual(urls, ['https://platform-sandbox.parspec.io/platform-api/api/v1/integrations/events/callback', BASE + 'integrations/events/callback']);
-  const hang = (url, init) => new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason)));
+  // A real fetch holds a socket open while it waits; this fake holds a timer instead, because the
+  // AbortSignal.timeout timer alone does not keep Node's event loop alive (Node 22 exits early).
+  const hang = (url, init) => new Promise((_, reject) => {
+    const keepAlive = setTimeout(() => {}, 10000);
+    init.signal.addEventListener('abort', () => { clearTimeout(keepAlive); reject(init.signal.reason); });
+  });
   await assert.rejects(createClient({ apiKey: 'k', baseUrl: BASE, fetch: hang, timeoutMs: 20 }).callback({ eventTransactionID: 't' }), e => e.status === 0);
 });
 
