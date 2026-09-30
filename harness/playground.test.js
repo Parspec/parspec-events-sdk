@@ -10,6 +10,11 @@ const { createPlayground, SAMPLES } = require('./playground.js');
 const sdk = require('../node/index.js');
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
+// Poll instead of sleeping a fixed time: fast when things are fast, patient on a slow CI runner.
+async function until(cond, what, ms = 5000) {
+  const end = Date.now() + ms;
+  while (!(await cond())) { if (Date.now() > end) throw new Error(`timed out waiting for ${what}`); await wait(20); }
+}
 // Every server a test opens is closed after it, pass or fail, so a failure cannot hang the run.
 const open = [];
 test.afterEach(() => { for (const s of open.splice(0)) s.closeAllConnections?.(), s.close(); });
@@ -58,7 +63,8 @@ test('receiver flow: callback, duplicate, tampered, old key', async () => {
   const twice = await pg.send({ eventType: 'tandemOrder.publishToErp', body, mode: 'twice' });
   const tampered = await pg.send({ eventType: 'tandemOrder.publishToErp', body, mode: 'tampered' });
   const stale = await pg.send({ eventType: 'tandemOrder.publishToErp', body, mode: 'stale' });
-  await wait(200);
+  await until(() => pg.log.filter(e => e.kind === 'callback').length >= 2, 'two callbacks');
+  await wait(100);   // a late extra callback would be a bug: give one the chance to arrive
 
   assert.deepStrictEqual([normal.results, twice.results, tampered.results, stale.results], [[200], [200, 200], [401], [401]]);
   const cbs = pg.log.filter(e => e.kind === 'callback');
@@ -76,7 +82,7 @@ test('every sample in fixtures/samples loads, and every one can be delivered and
   const rx = await receiver(client);
   for (const m of mocks) rx.keys[m.eventType] = (await client.subscribe(m.eventType, m.version, rx.url)).publicKey;
   for (const m of mocks) assert.deepStrictEqual((await pg.send({ eventType: m.eventType, body: JSON.stringify(m.delivery) })).results, [200], m.eventType);
-  await wait(300);
+  await until(() => pg.log.filter(e => e.kind === 'callback').length >= mocks.length, 'a callback per sample');
   const answered = new Set(pg.log.filter(e => e.kind === 'callback' && !e.problem).map(e => e.eventType));
   assert.deepStrictEqual([...answered].sort(), mocks.map(m => m.eventType).sort());
 });
@@ -113,7 +119,7 @@ test('PM API: key required, catalog hides subscribed events, conflict and unsubs
   const { pg, client } = await setup();
   assert.strictEqual((await fetch(pg.base() + 'integrations/events/list')).status, 401, 'no x-api-key');
   const catalog = async () => Object.keys((await (await fetch(pg.base() + 'integrations/events/list', { headers: { 'x-api-key': 'k' } })).json()).availableEvents);
-  assert.strictEqual((await catalog()).length, 17);
+  assert.strictEqual((await catalog()).length, fs.readdirSync(SAMPLES).filter(f => f.endsWith('.json')).length);
 
   const put = b => fetch(pg.base() + 'integrations/events/subscribe', { method: 'PUT', headers: { 'x-api-key': 'k', 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
   const first = await put({ event_type: 'quote.created', event_version: 2, webhook_url: 'http://127.0.0.1:9/x' });
@@ -141,7 +147,7 @@ test('callbacks: error callbacks, unknown transaction ids and bad EventStatus ar
   const rx = await receiver(client, { respond: e => client.fail(e, 'Credit check failed for C-42') });
   rx.keys.s = (await client.subscribe('salesOrder.publishToErp', 1, rx.url)).publicKey;
   const sent = await pg.send({ eventType: 'salesOrder.publishToErp', body });
-  await wait(200);
+  await until(() => pg.log.some(e => e.kind === 'callback' && e.txid === sent.txid), 'the error callback');
   const err = pg.log.find(e => e.kind === 'callback' && e.txid === sent.txid);
   assert.strictEqual(err.status, 'error');
   assert.strictEqual(err.body.errorMessage, 'Credit check failed for C-42');
@@ -188,4 +194,31 @@ test('page API: subscribe from the page, send errors, clear, and the page itself
   const script = html.match(/<script>([\s\S]*)<\/script>/)[1];
   assert.doesNotThrow(() => new Function(script));
   for (const id of new Set([...script.matchAll(/\$\('([\w-]+)'\)/g)].map(m => m[1]))) assert.match(html, new RegExp(`id="${id}"`), `#${id} missing from the page`);
+});
+
+test('guards: bad bodies get errors, not a crash; the page API refuses other origins', async () => {
+  const { pg } = await setup();
+  const raw = (p, init) => fetch(api(pg, p), init).then(r => r.status);
+  // Bodies that used to crash the process: JSON null, an array, a string, and garbage.
+  for (const data of ['null', '[1]', '"x"', '{nope']) {
+    assert.strictEqual(await raw('/platform-api/api/v1/integrations/events/subscribe', { method: 'PUT', headers: { 'x-api-key': 'k' }, body: data }), 400, data);
+  }
+  assert.strictEqual(await raw('/api/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: 'null' }), 400);
+  // A web page can send text/plain without a preflight: refused. So is a foreign Origin, even as JSON.
+  assert.strictEqual(await raw('/api/subscribe', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: '{"eventType":"x","url":"http://127.0.0.1:9"}' }), 415);
+  assert.strictEqual(await raw('/api/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://evil.example' }, body: '{"eventType":"x","url":"http://127.0.0.1:9"}' }), 403);
+  assert.strictEqual(await raw('/api/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"eventType":"x","url":"file:///etc/passwd"}' }), 400);
+  // DNS rebinding: a request whose Host is not localhost.
+  const rebind = await new Promise(r => http.get({ host: '127.0.0.1', port: new URL(pg.base()).port, path: '/api/state', headers: { Host: 'evil.example' } }, res => { res.resume(); r(res.statusCode); }));
+  assert.strictEqual(rebind, 421);
+  assert.strictEqual((await state(pg)).subscriptions.length, 0, 'none of the refused requests subscribed anything');
+  assert.strictEqual(await raw('/api/state'), 200, 'still up');
+});
+
+test('log ids stay unique after the log is trimmed or cleared', async () => {
+  const { pg } = await setup();
+  for (let i = 0; i < 3; i++) await post(api(pg, '/api/subscribe'), { eventType: `e${i}`, url: 'http://127.0.0.1:9/x' });
+  await post(api(pg, '/api/clear'), {});
+  await post(api(pg, '/api/subscribe'), { eventType: 'e9', url: 'http://127.0.0.1:9/x' });
+  assert.deepStrictEqual((await state(pg)).log.map(e => e.id), [4]);
 });

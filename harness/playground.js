@@ -29,7 +29,8 @@ function createPlayground({ mockDirs = [SAMPLES], noCallbackMs = 30000 } = {}) {
   const subs = new Map();   // eventType -> { version, url, publicKey, privateKey, previous: {publicKey, privateKey} | null, at }
   const prevKeys = new Map();   // eventType -> keys from before the last resubscribe (for 'Old key')
   const log = [];           // newest last: { id, at, kind: 'delivery'|'callback'|'subscribe'|'unsubscribe', ... }
-  const push = entry => { log.push({ id: log.length + 1, at: new Date().toISOString(), ...entry }); if (log.length > 500) log.shift(); };
+  let nextId = 1;
+  const push = entry => { log.push({ id: nextId++, at: new Date().toISOString(), ...entry }); if (log.length > 500) log.shift(); };
   const base = () => `http://127.0.0.1:${server.address() ? server.address().port : '?'}/platform-api/api/v1/`;
 
   // ---- mocks ----
@@ -100,25 +101,48 @@ function createPlayground({ mockDirs = [SAMPLES], noCallbackMs = 30000 } = {}) {
 
   // ---- HTTP ----
   const json = (res, status, body) => res.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(body));
-  const readBody = req => new Promise(r => { const c = []; req.on('data', d => c.push(d)); req.on('end', () => r(Buffer.concat(c))); });
+  const MAX_BODY = 5 << 20;
+  const readBody = req => new Promise((resolve, reject) => {
+    const c = [];
+    let n = 0;
+    req.on('data', d => { n += d.length; if (n > MAX_BODY) { reject(Object.assign(new Error('body too large'), { status: 413 })); req.destroy(); } else c.push(d); });
+    req.on('end', () => resolve(Buffer.concat(c)));
+    req.on('error', reject);
+    req.on('aborted', () => reject(new Error('request aborted')));
+  });
+  const isObject = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+  const localHost = h => /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(h || '');
 
+  // Every request goes through here: a bad request gets an error response, never a crashed playground.
   const server = http.createServer(async (req, res) => {
+    try { await handle(req, res); } catch (e) {
+      if (!res.headersSent) json(res, e.status || 500, { error: e.message });
+      else res.end();
+    }
+  });
+
+  async function handle(req, res) {
+    // Only reachable as localhost: a DNS-rebinding page that resolves its own name to 127.0.0.1 is refused.
+    if (!localHost(req.headers.host)) return json(res, 421, { error: 'the playground only answers on localhost' });
     const url = new URL(req.url, 'http://localhost');
     const raw = await readBody(req);
     let body = {};
-    try { body = raw.length ? JSON.parse(raw) : {}; } catch { /* callbacks are JSON; anything else is reported below */ }
+    if (raw.length) {
+      try { body = JSON.parse(raw); } catch { body = null; }
+    }
     const api = url.pathname.replace(/^\/platform-api\/api\/v1\//, '');
 
     // PM API surface
     if (api !== url.pathname) {
       if (!req.headers['x-api-key']) return json(res, 401, { error: 'missing x-api-key' });
+      if (!isObject(body)) return json(res, 400, { error: 'body must be a JSON object' });
       if (req.method === 'GET' && api === 'integrations/events/list') {
         const types = [...new Set(loadMocks().filter(m => m.eventType).map(m => m.eventType))];
         return json(res, 200, { availableEvents: Object.fromEntries(types.filter(t => !subs.has(t)).map(t => [t, t])), message: 'Success' });
       }
       if (req.method === 'PUT' && api === 'integrations/events/subscribe') {
-        if (subs.has(body.event_type)) return json(res, 400, { error: `an active subscription already exists for event type ${body.event_type} and version ${subs.get(body.event_type).version}` });
         if (!body.event_type || !body.webhook_url) return json(res, 400, { error: 'event_type and webhook_url are required' });
+        if (subs.has(body.event_type)) return json(res, 400, { error: `an active subscription already exists for event type ${body.event_type} and version ${subs.get(body.event_type).version}` });
         const keys = newKeys();
         subs.set(body.event_type, { version: body.event_version, url: body.webhook_url, ...keys, previous: prevKeys.get(body.event_type) || null, at: new Date().toISOString() });
         push({ kind: 'subscribe', eventType: body.event_type, url: body.webhook_url, version: body.event_version });
@@ -142,7 +166,14 @@ function createPlayground({ mockDirs = [SAMPLES], noCallbackMs = 30000 } = {}) {
       return json(res, 404, { error: `the playground does not implement ${req.method} ${api}` });
     }
 
-    // Page API
+    // Page API. Writes must be JSON from the page's own origin: a JSON POST from another site needs a CORS
+    // preflight the playground never grants, so a web page you visit cannot drive it.
+    if (req.method === 'POST' && url.pathname.startsWith('/api/')) {
+      if (!/^application\/json\b/i.test(req.headers['content-type'] || '')) return json(res, 415, { error: 'Content-Type must be application/json' });
+      const origin = req.headers.origin;
+      if (origin && !localHost(origin.replace(/^https?:\/\//i, ''))) return json(res, 403, { error: 'cross-origin requests are not allowed' });
+      if (!isObject(body)) return json(res, 400, { error: 'body must be a JSON object' });
+    }
     if (req.method === 'GET' && url.pathname === '/api/state') {
       const now = Date.now();
       const answered = new Set(log.filter(e => e.kind === 'callback').map(e => e.txid));
@@ -156,6 +187,8 @@ function createPlayground({ mockDirs = [SAMPLES], noCallbackMs = 30000 } = {}) {
       });
     }
     if (req.method === 'POST' && url.pathname === '/api/subscribe') {   // subscribe from the page
+      if (typeof body.eventType !== 'string' || !body.eventType) return json(res, 400, { error: 'eventType is required' });
+      try { if (!/^https?:$/.test(new URL(body.url).protocol)) throw new Error(); } catch { return json(res, 400, { error: 'url must be an http(s) URL' }); }
       if (subs.has(body.eventType)) {
         const old = subs.get(body.eventType);
         prevKeys.set(body.eventType, { publicKey: old.publicKey, privateKey: old.privateKey });
@@ -174,11 +207,14 @@ function createPlayground({ mockDirs = [SAMPLES], noCallbackMs = 30000 } = {}) {
       return res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(fs.readFileSync(path.join(__dirname, 'playground.html')));
     }
     json(res, 404, { error: 'not found' });
-  });
+  }
 
 
   return { server, send, subs, log, loadMocks, base,
-    listen: (port = 0) => new Promise(r => server.listen(port, '127.0.0.1', () => r(server.address().port))) };
+    listen: (port = 0) => new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(port, '127.0.0.1', () => { server.off('error', reject); resolve(server.address().port); });
+    }) };
 }
 
 if (require.main === module) {
@@ -187,11 +223,11 @@ if (require.main === module) {
   const port = Number(opts('port')[0] || process.env.PORT || 4800);
   const extra = opts('mocks').length ? opts('mocks') : fs.existsSync('mocks') ? ['mocks'] : [];
   const pg = createPlayground({ mockDirs: [SAMPLES, ...extra] });
-  pg.listen(port).then(() => {
+  pg.listen(port).catch(e => { console.error(`cannot listen on ${port}: ${e.message}`); process.exit(1); }).then(() => {
     console.log(`PM playground on http://localhost:${port}`);
     console.log(`  SDK base URL: ${pg.base()}   (any x-api-key)`);
     console.log(`  mocks from:   ${[SAMPLES, ...extra].map(d => path.resolve(d)).filter(d => fs.existsSync(d)).join(', ')}`);
   });
 }
 
-module.exports = { createPlayground, SAMPLES };
+module.exports = { createPlayground, SAMPLES, V2 };

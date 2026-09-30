@@ -179,7 +179,7 @@ $('subBtn').onclick = async () => {
   await fetch('/api/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eventType: $('subType').value, url: $('subUrl').value }) });
   refresh();
 };
-$('clear').onclick = async () => { await fetch('/api/clear', { method: 'POST' }); refresh(); };
+$('clear').onclick = async () => { await fetch('/api/clear', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); refresh(); };
 refresh();
 setInterval(refresh, 1500);
 </script>

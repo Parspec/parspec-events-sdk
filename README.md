@@ -5,7 +5,7 @@ Small libraries for receiving Parspec PM webhook events in your own service: sub
 | Language | Branch | Folder on `main` | Dependencies |
 |---|---|---|---|
 | Node 18+ | `node` | `node/` | none |
-| Python 3.9+ | `python` | `python/` | `cryptography` |
+| Python 3.10+ | `python` | `python/` | `cryptography` |
 | C# / .NET 8+ | `csharp` | `csharp/` | none |
 | Java 17+ | `java` | `java/` | none |
 

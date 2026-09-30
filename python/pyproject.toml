@@ -2,8 +2,9 @@
 name = "parspec-events"
 version = "0.1.0"
 description = "Subscribe to Parspec PM events, verify webhook signatures, and send callbacks."
-requires-python = ">=3.9"
-dependencies = ["cryptography>=41"]
+requires-python = ">=3.10"
+# 50.0 is the first release with no open advisories (pip-audit, 2026-09-30).
+dependencies = ["cryptography>=50"]
 
 [build-system]
 requires = ["setuptools>=61"]

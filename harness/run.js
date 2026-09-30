@@ -22,8 +22,8 @@ const ROOT = path.resolve(__dirname, '..');
 const BUILD = path.join(__dirname, '.build');
 const LANGS = ['node', 'python', 'csharp', 'java'];
 
-// Payload versions the org subscribes with; everything else is v1. Override per event with type:version.
-const V2 = new Set(['inventory.fetchPrice', 'quote.created', 'quote.updated', 'quote.publishToOrderSystem', 'bom.publishToOrderSystem']);
+// Payload versions the org subscribes with (v2 for these, v1 otherwise). Override per event with type:version.
+const { V2 } = require('./playground.js');
 
 const args = process.argv.slice(2);
 const mode = args[0];
@@ -39,9 +39,10 @@ const javaBin = tool => {
   return fs.existsSync(keg) ? keg : tool;
 };
 
-function sh(cmd, argv, { input, cwd = ROOT, quiet = false } = {}) {
+// A hung adapter or toolchain must not hang the run: kill it after timeoutMs.
+function sh(cmd, argv, { input, cwd = ROOT, quiet = false, timeoutMs = 180000 } = {}) {
   return new Promise(resolve => {
-    const p = spawn(cmd, argv, { cwd });
+    const p = spawn(cmd, argv, { cwd, timeout: timeoutMs, killSignal: 'SIGKILL' });
     let out = '', err = '';
     p.stdout.on('data', d => { out += d; if (!quiet && input === undefined) process.stdout.write(d); });
     p.stderr.on('data', d => { err += d; });
@@ -229,7 +230,7 @@ async function live() {
   if (!apiKey || !webhookBase || !events.length) {
     throw new Error('live needs PARSPEC_API_KEY, PARSPEC_WEBHOOK_URL (public URL that reaches this machine on PORT) and --events a,b,c');
   }
-  if (/platform\.parspec\.io/.test(base) && !flag('allow-production')) throw new Error('refusing production without --allow-production');
+  if (new URL(base).hostname === 'platform.parspec.io' && !flag('allow-production')) throw new Error('refusing production without --allow-production');
 
   const catalog = async () => {
     const res = await fetch(base + 'integrations/events/list', { headers: { 'x-api-key': apiKey } });
@@ -246,6 +247,7 @@ async function live() {
       if (req.method !== 'POST') return res.writeHead(200).end('parspec sdk harness');
       res.writeHead(200).end();
       const d = { at: new Date().toISOString(), url: req.url, raw: Buffer.concat(chunks), sig: req.headers['x-signature'], idem: req.headers['idempotency-key'] };
+      try { d.txid = JSON.parse(d.raw).eventTransactionID || null; } catch { d.txid = null; }   // anyone can POST to a public URL
       d.eventType = (events.find(e => req.url.endsWith(`/webhook/${e.type}`)) || {}).type || null;
       deliveries.push(d);
       console.log(`  ← ${d.at} ${d.eventType || req.url} (${d.raw.length} bytes)`);
@@ -313,8 +315,8 @@ async function live() {
         check(rows[lang].verify, v.ok && v.value[1] === false, `${d.eventType} @ ${d.at}: tampered copy verified`);
       }
       // The subscribing language answers PM, once per transaction.
-      const txid = JSON.parse(d.raw).eventTransactionID;
-      if (deliveries.findIndex(x => x.raw.length && JSON.parse(x.raw).eventTransactionID === txid) !== deliveries.indexOf(d)) continue;
+      const txid = d.txid;
+      if (!txid || deliveries.findIndex(x => x.txid === txid) !== deliveries.indexOf(d)) continue;
       const r = await call(o.lang, { op: 'callback', base, apiKey, publicKey: o.publicKey,
         cases: [{ body, signature: d.sig, fields: { metadata: { source: 'parspec-sdk-harness' } } }] });
       check(rows[o.lang].callback, r.ok, `${d.eventType} tx=${txid}: ${r.error}`);
@@ -326,16 +328,17 @@ async function live() {
       await new Promise(r => setTimeout(r, 300));
       const cbs = fake.log.filter(e => e.kind === 'callback');
       for (const [type, { lang }] of owner) {
-        const txids = new Set(deliveries.filter(d => d.eventType === type).map(d => JSON.parse(d.raw).eventTransactionID));
+        const txids = new Set(deliveries.filter(d => d.eventType === type && d.txid).map(d => d.txid));
         const mine = cbs.filter(c => txids.has(c.txid));
         check(rows[lang].callback, mine.length === txids.size && mine.every(c => !c.problem && c.status === 'success'),
           `${type}: ${mine.length} callbacks for ${txids.size} transaction(s)${mine.find(c => c.problem) ? ` (${mine.find(c => c.problem).problem})` : ''}`);
       }
     }
   } finally {
-    await cleanup();
-    server.close();
-    if (fake) fake.server.close();
+    try { await cleanup(); } finally {
+      server.close();
+      if (fake) fake.server.close();
+    }
   }
   console.log('');
   const failed = report(rows);

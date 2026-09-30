@@ -34,6 +34,7 @@ public final class FixturesTest {
         return (method, url, headers, body) -> {
             calls.add(new Call(method, url, Json.parse(body), headers.get("x-api-key")));
             Map<String, Object> r = calls.size() <= responses.size() ? responses.get(calls.size() - 1) : Map.of("status", 200L, "body", Map.of());
+            if (Boolean.TRUE.equals(r.get("network"))) throw new java.net.ConnectException("connection refused");
             return new ParspecClient.Response(((Long) r.get("status")).intValue(), Json.write(r.get("body")));
         };
     }
@@ -46,14 +47,15 @@ public final class FixturesTest {
                 String sig = (String) c.get("signature");
                 boolean valid = (Boolean) c.get("valid");
                 require(Signature.verify(raw, sig, key) == valid, "verify should be " + valid);
-                if (valid) {
+                if (valid && !c.containsKey("envelope")) {
                     Signature.ParsedEvent p = Signature.parseEvent(raw, sig, key, "idem-1");
                     require(p.transactionId().equals(p.event().get("eventTransactionID")), "transaction id");
                     require("idem-1".equals(p.idempotencyKey()), "idempotency key");
                 } else {
-                    boolean threw = false;
-                    try { Signature.parseEvent(raw, sig, key); } catch (Signature.SignatureException e) { threw = true; }
-                    require(threw, "parseEvent should throw SignatureException");
+                    Throwable thrown = null;
+                    try { Signature.parseEvent(raw, sig, key); } catch (Throwable e) { thrown = e; }
+                    require(valid ? thrown instanceof Signature.EventException : thrown instanceof Signature.SignatureException,
+                        "parseEvent should throw " + (valid ? "EventException" : "SignatureException") + ", threw " + thrown);
                 }
             });
         }
@@ -67,13 +69,14 @@ public final class FixturesTest {
                 String txid = (String) evt.get("eventTransactionID");
                 String cb = (String) evt.get("callback_url");
                 Map<String, Object> exp = (Map<String, Object>) c.get("expect");
-                int status = 0;
+                int status = -1;   // -1: nothing thrown
                 try {
                     if ("error".equals(c.get("call"))) client.fail(txid, cb, (String) c.get("message"));
                     else client.callback(txid, cb, (Map<String, Object>) c.get("fields"));
                 } catch (ParspecClient.ParspecApiException e) { status = e.status(); }
-                int wantStatus = exp.containsKey("error") ? ((Long) exp.get("error")).intValue() : 0;
+                int wantStatus = exp.containsKey("error") ? ((Long) exp.get("error")).intValue() : -1;
                 require(status == wantStatus, "expected error status " + wantStatus + ", got " + status);
+                if (!exp.containsKey("method")) { require(calls.isEmpty(), "no request may be sent"); return; }
                 require(calls.size() == 1, "one request");
                 Call got = calls.get(0);
                 require(got.method().equals(exp.get("method")), "method " + got.method());
@@ -112,6 +115,53 @@ public final class FixturesTest {
                 }
             });
         }
+
+        // The JSON codec against literal expectations: the fixtures above parse and compare with the same
+        // codec, so a parser bug and a writer bug could cancel out there.
+        check("json: escapes and unicode", () -> {
+            require("\"\\\"\\\\\\n\\r\\t\\u0001é\"".equals(Json.write("\"\\\n\r\t\u0001é")), "writer escapes: " + Json.write("\"\\\n\r\t\u0001é"));
+            require("\"\\\n\r\t\b\f/é😀".equals(Json.parse("\"\\\"\\\\\\n\\r\\t\\b\\f\\/\\u00e9\\ud83d\\ude00\"")), "parser escapes");
+        });
+        check("json: numbers keep their precision", () -> {
+            require(Long.valueOf(42).equals(Json.parse("42")), "long");
+            require(new java.math.BigInteger("12345678901234567890").equals(Json.parse("12345678901234567890")), "beyond Long");
+            require("12.3400".equals(Json.write(Json.parse("12.3400"))), "decimal digits kept: " + Json.write(Json.parse("12.3400")));
+        });
+        check("json: invalid input is rejected with an IllegalArgumentException", () -> {
+            for (String bad : new String[] { "", "01", "+1", ".5", "1.", "[1,]", "{\"a\":1,}", "\"\\u-123\"", "\"\\u12G4\"", "\"a\u0001b\"",
+                    "\u000b1", "nul", "[1] x", "\"unterminated" }) {
+                boolean rejected = false;
+                try { Json.parse(bad); } catch (IllegalArgumentException e) { rejected = true; }
+                require(rejected, "should reject: " + bad);
+            }
+        });
+        check("json: deep nesting is an error, not a StackOverflowError", () -> {
+            String deep = "[".repeat(100_000) + "]".repeat(100_000);
+            boolean rejected = false;
+            try { Json.parse(deep); } catch (IllegalArgumentException e) { rejected = e.getMessage().contains("nested deeper"); }
+            require(rejected, "deep nesting");
+            require(Json.parse("[".repeat(Json.MAX_DEPTH) + "]".repeat(Json.MAX_DEPTH)) instanceof List, "MAX_DEPTH itself is fine");
+        });
+        check("json: the writer refuses NaN and infinities", () -> {
+            for (Object bad : new Object[] { Double.NaN, Double.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY }) {
+                boolean rejected = false;
+                try { Json.write(bad); } catch (IllegalArgumentException e) { rejected = true; }
+                require(rejected, "should refuse " + bad);
+            }
+        });
+        check("subscribe: the 'already exists' retry works under a Turkish locale", () -> {
+            java.util.Locale prev = java.util.Locale.getDefault();
+            java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr-TR"));
+            try {
+                List<Call> calls = new ArrayList<>();
+                List<Map<String, Object>> responses = List.of(
+                    Map.of("status", 200L, "body", Map.of()), Map.of("status", 200L, "body", Map.of()),
+                    Map.of("status", 400L, "body", Map.of("error", "AN ACTIVE SUBSCRIPTION ALREADY EXISTS FOR EVENT TYPE X AND VERSION 1")),
+                    Map.of("status", 200L, "body", Map.of()), Map.of("status", 200L, "body", Map.of("publicKey", "K")));
+                ParspecClient.SubscribeResult r = new ParspecClient("k", BASE, fake(calls, responses)).subscribe("x", 1, "https://erp.example/w");
+                require(r.replaced() == 1 && "K".equals(r.publicKey()), "result " + r);
+            } finally { java.util.Locale.setDefault(prev); }
+        });
 
         System.out.println(pass + " passed, " + fail + " failed");
         System.exit(fail == 0 ? 0 : 1);

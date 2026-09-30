@@ -1,6 +1,6 @@
 # Conformance harness
 
-Runs all four SDKs through the same checks. Needs the four toolchains (Node 18+, Python 3.9+ with `cryptography`, .NET 10 SDK, JDK 17+). From the repo root:
+Runs all four SDKs through the same checks. Needs the four toolchains (Node 18+, Python 3.10+ with `cryptography`, .NET 10 SDK, JDK 17+). From the repo root:
 
 | Command | What it checks | Network |
 |---|---|---|
@@ -40,6 +40,8 @@ PARSPEC_BASE_URL=http://localhost:4800/platform-api/api/v1/ PARSPEC_API_KEY=dev 
 ```
 
 `node --test harness/playground.test.js` runs the same flow as a test.
+
+The playground has no authentication, by design. It answers only on localhost and refuses cross-origin page requests. Never expose it on a funnel or any public URL.
 
 ## Replay
 

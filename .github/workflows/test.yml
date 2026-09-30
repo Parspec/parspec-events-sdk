@@ -16,13 +16,13 @@ jobs:
       - run: node --test test.js
         working-directory: node
   python:
-    strategy: { matrix: { python: ['3.9', '3.13'] } }
+    strategy: { matrix: { python: ['3.10', '3.13'] } }
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: '${{ matrix.python }}' }
-      - run: pip install cryptography
+      - run: pip install 'cryptography>=50'
       - run: python -m unittest
         working-directory: python
   csharp:
@@ -58,7 +58,7 @@ jobs:
         with: { node-version: '22' }
       - uses: actions/setup-python@v5
         with: { python-version: '3.13' }
-      - run: pip install cryptography
+      - run: pip install 'cryptography>=50'
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: '10.0.x' }
       - uses: actions/setup-java@v4

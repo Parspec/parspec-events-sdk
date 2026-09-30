@@ -1,6 +1,6 @@
 # Parspec PM events: Python
 
-Subscribe to Parspec PM events, verify webhook signatures, and send callbacks. Python 3.9+. Needs `cryptography` (the standard library can't verify RSA); HTTP uses the standard library.
+Subscribe to Parspec PM events, verify webhook signatures, and send callbacks. Python 3.10+. Needs `cryptography` (the standard library can't verify RSA); HTTP uses the standard library.
 
 Copy `parspec_events.py` into your project, or `pip install ./python`.
 

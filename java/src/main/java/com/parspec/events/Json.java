@@ -1,15 +1,25 @@
 package com.parspec.events;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
-// Minimal JSON: objects -> LinkedHashMap, arrays -> ArrayList, numbers -> Long or Double.
+// Minimal RFC 8259 JSON: objects -> LinkedHashMap, arrays -> ArrayList, integers -> Long (BigInteger
+// beyond Long), decimals -> BigDecimal (so "12.3400" keeps its digits). Nesting is capped at MAX_DEPTH so
+// a deep body is an error, not a StackOverflowError.
 // ponytail: hand-rolled to keep the SDK dependency-free; swap for Jackson if it ever needs more than the envelope.
 final class Json {
+    static final int MAX_DEPTH = 512;
+    private static final Pattern NUMBER = Pattern.compile("-?(0|[1-9]\\d*)(\\.\\d+)?([eE][+-]?\\d+)?");
+    private static final Pattern INTEGER = Pattern.compile("-?(0|[1-9]\\d*)");
+    private static final String HEX = "0123456789abcdef";
     private final String s;
     private int i;
+    private int depth;
 
     private Json(String s) { this.s = s; }
 
@@ -24,7 +34,13 @@ final class Json {
 
     private IllegalArgumentException err(String msg) { return new IllegalArgumentException("invalid JSON at " + i + ": " + msg); }
 
-    private void ws() { while (i < s.length() && Character.isWhitespace(s.charAt(i))) i++; }
+    private void ws() {
+        while (i < s.length()) {
+            char c = s.charAt(i);
+            if (c != ' ' && c != '\t' && c != '\n' && c != '\r') return;
+            i++;
+        }
+    }
 
     private char peek() { if (i >= s.length()) throw err("unexpected end"); return s.charAt(i); }
 
@@ -36,8 +52,11 @@ final class Json {
     private Object value() {
         char c = peek();
         switch (c) {
-            case '{': return object();
-            case '[': return array();
+            case '{': case '[':
+                if (++depth > MAX_DEPTH) throw err("nested deeper than " + MAX_DEPTH);
+                Object nested = c == '{' ? object() : array();
+                depth--;
+                return nested;
             case '"': return string();
             case 't': expect("true"); return Boolean.TRUE;
             case 'f': expect("false"); return Boolean.FALSE;
@@ -83,6 +102,7 @@ final class Json {
         while (true) {
             char c = peek(); i++;
             if (c == '"') return b.toString();
+            if (c < 0x20) throw err("control character in string");
             if (c != '\\') { b.append(c); continue; }
             char e = peek(); i++;
             switch (e) {
@@ -94,7 +114,13 @@ final class Json {
                 case 't': b.append('\t'); break;
                 case 'u':
                     if (i + 4 > s.length()) throw err("bad \\u escape");
-                    b.append((char) Integer.parseInt(s.substring(i, i + 4), 16));
+                    int cp = 0;
+                    for (int k = 0; k < 4; k++) {
+                        int d = HEX.indexOf(Character.toLowerCase(s.charAt(i + k)));
+                        if (d < 0) throw err("bad \\u escape");
+                        cp = cp * 16 + d;
+                    }
+                    b.append((char) cp);
                     i += 4;
                     break;
                 default: throw err("bad escape");
@@ -107,11 +133,10 @@ final class Json {
         while (i < s.length() && "+-0123456789.eE".indexOf(s.charAt(i)) >= 0) i++;
         String n = s.substring(start, i);
         if (n.isEmpty()) throw err("unexpected character");
-        try {
-            return n.matches("-?\\d+") ? (Object) Long.parseLong(n) : (Object) Double.parseDouble(n);
-        } catch (NumberFormatException e) {
-            throw err("bad number " + n);
-        }
+        if (!NUMBER.matcher(n).matches()) throw err("bad number " + (n.length() > 40 ? n.substring(0, 40) + "..." : n));
+        if (!INTEGER.matcher(n).matches()) return new BigDecimal(n);
+        BigInteger big = new BigInteger(n);
+        return big.bitLength() < 64 ? (Object) big.longValue() : big;
     }
 
     static String write(Object v) {
@@ -123,6 +148,8 @@ final class Json {
     private static void write(Object v, StringBuilder b) {
         if (v == null) b.append("null");
         else if (v instanceof String) quote((String) v, b);
+        else if (v instanceof Double && !Double.isFinite((Double) v) || v instanceof Float && !Float.isFinite((Float) v))
+            throw new IllegalArgumentException("cannot write " + v + " as JSON");
         else if (v instanceof Boolean || v instanceof Number) b.append(v);
         else if (v instanceof Map) {
             b.append('{');
