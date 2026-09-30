@@ -1,6 +1,6 @@
 # Parspec PM events: Python
 
-Subscribe to Parspec PM events, verify webhook signatures, and send callbacks. Python 3.9+. Needs `cryptography` (the standard library can't verify RSA); HTTP uses the standard library.
+Subscribe to Parspec PM events, verify webhook signatures, and send callbacks. Python 3.10+. Needs `cryptography` (the standard library can't verify RSA); HTTP uses the standard library.
 
 Copy `parspec_events.py` into your project, or `pip install ./python`.
 
@@ -72,6 +72,14 @@ POST {base}/{callback_url}
 ```
 
 On failure, send `"EventStatus": "error"` with an `errorMessage`. PM shows that message to the user (a failed credit check, for example).
+
+`callback_url` is a path relative to the base URL; every delivery PM has sent uses `integrations/events/callback`. The API key goes with every callback, so the SDKs send it only to the configured PM host: an absolute `callback_url` on any other host is refused, and nothing is sent.
+
+**Errors, the same in every SDK:**
+
+- `verify` returns true or false and never throws, even for a missing, malformed or non-RSA key.
+- `parseEvent` raises the signature error when the signature doesn't verify, and the event error when a signed body isn't a PM event (not JSON, not an object, no `eventTransactionID`).
+- Every failed API call raises the SDK's API error, carrying the HTTP status. The status is `0` when there was no response (network failure, timeout) or the request was refused before sending.
 
 **Base URLs** (`{base}`):
 
