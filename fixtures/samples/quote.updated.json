@@ -1,0 +1,318 @@
+{
+  "eventType": "quote.updated",
+  "version": 2,
+  "delivery": {
+    "eventTransactionID": "84b12d81-50a5-4b4b-82d2-3bb64f44ef15",
+    "callback_url": "integrations/events/callback",
+    "data": {
+      "ParspecJSON": {
+        "BOM": {
+          "BOMID": 100402,
+          "BOMName": "BOM 1 - Demo Office Building",
+          "CRMID": "",
+          "OutsideSalesCRMID": "CRM-DEMO",
+          "OutsideSalesERPID": "ERP-DEMO",
+          "OutsideSalesName": "Jane Demo",
+          "PrimaryCustomer": {
+            "CompanyCRMID": null,
+            "CompanyERPID": "INT-CO-00009",
+            "CompanyName": "Demo Electrical Contractors",
+            "ContactCRMID": "None",
+            "ContactName": "John Sample",
+            "DUNS": "446541571"
+          },
+          "QuotePricingAggregates": {
+            "Freight": [],
+            "Lots": [
+              {
+                "CostAmount": "33.00",
+                "CostCents": 3300,
+                "DiscountPercentage": 0,
+                "DiscountedCostAmount": "33.00",
+                "DiscountedCostCents": 3300,
+                "ExtendedSellPriceAmount": "37.50",
+                "ExtendedSellPriceCents": 3750,
+                "LeadTime": {
+                  "Max": null,
+                  "Min": null,
+                  "Unit": null
+                },
+                "LineItemType": "Lot",
+                "LotID": 669048,
+                "MarginPercentage": 12,
+                "Name": "LOT",
+                "SellPriceAmount": "37.50",
+                "SellPriceCents": 3750,
+                "SourceQuoteNumber": ""
+              }
+            ],
+            "Services": [],
+            "Tax": []
+          },
+          "SecondaryCustomer": {
+            "CompanyCRMID": null,
+            "CompanyERPID": null,
+            "CompanyName": null,
+            "ContactCRMID": "",
+            "ContactName": null,
+            "DUNS": null
+          },
+          "Sections": [
+            {
+              "Products": [
+                {
+                  "CostAmount": "12.00",
+                  "CostCents": 1200,
+                  "Description": "",
+                  "DiscountPercentage": 10,
+                  "DiscountedCostAmount": "10.80",
+                  "DiscountedCostCents": 1080,
+                  "ExtendedSellPriceAmount": "190.5888",
+                  "ExtendedSellPriceCents": 19059,
+                  "InternalComments": null,
+                  "LastUpdatedDateTime": "2025-11-15T13:36:16.610Z",
+                  "LeadTime": {
+                    "Max": null,
+                    "Min": null,
+                    "Unit": null
+                  },
+                  "LineItemType": "Product",
+                  "LotID": null,
+                  "Manufacturer": "DEMO MANUFACTURING",
+                  "ManufacturerERPID": "INT-MFG-00009",
+                  "MarginPercentage": 32,
+                  "ModelNumber": "DEMO-100",
+                  "Per": 1,
+                  "PricingPer": 1,
+                  "ProductERPID": null,
+                  "ProductID": 9779290,
+                  "Quantity": 12,
+                  "QuoteNotesExternal": null,
+                  "SellPriceAmount": "15.8824",
+                  "SellPriceCents": 1588,
+                  "SellingUOMConversionFactor": 1,
+                  "SellingUom": "EA",
+                  "SourceQuoteNumber": null,
+                  "StockLocationERPID": null,
+                  "Type": "",
+                  "UOM": "EA"
+                },
+                {
+                  "CostAmount": "null",
+                  "CostCents": null,
+                  "Description": "",
+                  "DiscountPercentage": null,
+                  "DiscountedCostAmount": "null",
+                  "DiscountedCostCents": null,
+                  "ExtendedSellPriceAmount": "null",
+                  "ExtendedSellPriceCents": null,
+                  "InternalComments": null,
+                  "LastUpdatedDateTime": "2025-11-09T14:38:29.230Z",
+                  "LeadTime": {
+                    "Max": null,
+                    "Min": null,
+                    "Unit": null
+                  },
+                  "LineItemType": "Component",
+                  "LotID": 669048,
+                  "Manufacturer": "SAMPLE LIGHTING CO",
+                  "ManufacturerERPID": "INT-MFG-00001",
+                  "MarginPercentage": null,
+                  "ModelNumber": "DEMO-200",
+                  "Per": 1,
+                  "PricingPer": 1,
+                  "ProductERPID": null,
+                  "ProductID": 3595613,
+                  "Quantity": 13,
+                  "QuoteNotesExternal": "",
+                  "SellPriceAmount": "null",
+                  "SellPriceCents": null,
+                  "SellingUOMConversionFactor": 1,
+                  "SellingUom": "EA",
+                  "SourceQuoteNumber": null,
+                  "StockLocationERPID": "",
+                  "Type": "",
+                  "UOM": "EA"
+                },
+                {
+                  "CostAmount": "null",
+                  "CostCents": null,
+                  "Description": "",
+                  "DiscountPercentage": null,
+                  "DiscountedCostAmount": "null",
+                  "DiscountedCostCents": null,
+                  "ExtendedSellPriceAmount": "null",
+                  "ExtendedSellPriceCents": null,
+                  "InternalComments": null,
+                  "LastUpdatedDateTime": "2025-11-09T14:38:29.511Z",
+                  "LeadTime": {
+                    "Max": null,
+                    "Min": null,
+                    "Unit": null
+                  },
+                  "LineItemType": "Component",
+                  "LotID": 669048,
+                  "Manufacturer": "SAMPLE LIGHTING CO",
+                  "ManufacturerERPID": "INT-MFG-00001",
+                  "MarginPercentage": null,
+                  "ModelNumber": "DEMO-300",
+                  "Per": 1,
+                  "PricingPer": 1,
+                  "ProductERPID": null,
+                  "ProductID": 8053402,
+                  "Quantity": 21,
+                  "QuoteNotesExternal": null,
+                  "SellPriceAmount": "null",
+                  "SellPriceCents": null,
+                  "SellingUOMConversionFactor": 1,
+                  "SellingUom": "EA",
+                  "SourceQuoteNumber": null,
+                  "StockLocationERPID": "",
+                  "Type": "",
+                  "UOM": "EA"
+                }
+              ],
+              "SectionName": "Demo Section 1",
+              "SectionType": "Primary-Section"
+            }
+          ],
+          "SubstituteSections": [
+            {
+              "Products": [
+                {
+                  "CostAmount": "null",
+                  "CostCents": null,
+                  "Description": "",
+                  "DiscountPercentage": null,
+                  "DiscountedCostAmount": "null",
+                  "DiscountedCostCents": null,
+                  "ExtendedSellPriceAmount": "null",
+                  "ExtendedSellPriceCents": null,
+                  "InternalComments": null,
+                  "LastUpdatedDateTime": "2025-11-09T14:32:41.313Z",
+                  "LeadTime": {
+                    "Max": null,
+                    "Min": null,
+                    "Unit": null
+                  },
+                  "LineItemType": "Product",
+                  "LotID": null,
+                  "Manufacturer": "",
+                  "ManufacturerERPID": null,
+                  "MarginPercentage": null,
+                  "ModelNumber": "",
+                  "Per": 1,
+                  "PricingPer": 1,
+                  "ProductERPID": null,
+                  "ProductID": 8386002,
+                  "ProductToReplace": "",
+                  "Quantity": 0,
+                  "QuoteNotesExternal": null,
+                  "SellPriceAmount": "null",
+                  "SellPriceCents": null,
+                  "SellingUOMConversionFactor": 1,
+                  "SellingUom": "EA",
+                  "SourceQuoteNumber": null,
+                  "StockLocationERPID": null,
+                  "Type": "",
+                  "UOM": "EA"
+                }
+              ],
+              "SectionName": "Demo Section 2",
+              "SectionType": "Options-Section"
+            }
+          ],
+          "SummaryMetrics": {
+            "extendedCostTotal": "177.00",
+            "extendedDiscountedCostTotal": "162.60",
+            "extendedSellPriceTotal": "228.09",
+            "freightTotal": "0.00",
+            "grandTotal": "228.09",
+            "marginTotalPercentage": "28.7120",
+            "servicesTotal": "0.00",
+            "taxesTotal": "0.00"
+          }
+        },
+        "Opportunity": {
+          "CRMID": "",
+          "CreatedAt": "2025-11-08T20:58:28.521Z",
+          "EstimatedValue": 0,
+          "ID": 167,
+          "Name": "Opportunity 1",
+          "Priority": "Medium",
+          "ProjectManager": {
+            "CRMID": "",
+            "ERPID": "ERP-DEMO",
+            "ID": 5854,
+            "Name": "Jane Demo"
+          },
+          "QuoteDueDateTime": "2025-11-09T14:36:34.891Z",
+          "Quoter": {
+            "CRMID": "",
+            "ERPID": "ERP-DEMO",
+            "ID": 5854,
+            "Name": "Jane Demo"
+          },
+          "Scopes": [],
+          "Stage": "Specification",
+          "StageColor": "None",
+          "StageConfigID": null,
+          "UpdatedAt": "2025-11-09T14:37:03.352Z"
+        },
+        "Project": {
+          "AddressLine1": "",
+          "AddressLine2": "",
+          "CRMID": "",
+          "City": "",
+          "ConstructionScope": "New Construction",
+          "Country": "",
+          "ERPID": "INT-PRJ-007",
+          "ID": 825781,
+          "LocationERPID": "3730",
+          "LocationName": "Demo Branch",
+          "MarketVertical": "Industrial",
+          "Name": "Demo Office Building",
+          "SquareFootage": 260000,
+          "Stakeholders": [
+            {
+              "BusinessType": null,
+              "CompanyCRMID": null,
+              "CompanyERPID": null,
+              "CompanyName": null,
+              "Contact": null,
+              "ContactCRMID": "",
+              "DUNS": null
+            },
+            {
+              "BusinessType": null,
+              "CompanyCRMID": null,
+              "CompanyERPID": null,
+              "CompanyName": null,
+              "Contact": null,
+              "ContactCRMID": "",
+              "DUNS": null
+            },
+            {
+              "BusinessType": null,
+              "CompanyCRMID": null,
+              "CompanyERPID": null,
+              "CompanyName": null,
+              "Contact": null,
+              "ContactCRMID": "",
+              "DUNS": null
+            }
+          ],
+          "State": "",
+          "ZipCode": ""
+        },
+        "Quote": {
+          "ID": "825781-100402-1",
+          "Status": "Won",
+          "QuoteNumber": "QT-000558"
+        }
+      },
+      "Version": 2
+    }
+  },
+  "callback": {}
+}

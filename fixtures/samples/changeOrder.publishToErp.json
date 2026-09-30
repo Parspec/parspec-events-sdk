@@ -1,0 +1,198 @@
+{
+  "eventType": "changeOrder.publishToErp",
+  "version": 1,
+  "delivery": {
+    "eventTransactionID": "85b80acc-f7b2-4e54-80c5-f3d8ab594d65",
+    "callback_url": "integrations/events/callback",
+    "data": {
+      "bom": {
+        "id": 725519,
+        "name": "BOM 1 - Demo Office Building"
+      },
+      "breakoutId": 6,
+      "changeOrder": {
+        "applyTo": {
+          "purchaseOrder": true,
+          "salesOrder": true
+        },
+        "asiOrRfiNumber": "",
+        "createdAt": "2025-11-24T19:10:58.538991Z",
+        "createdBy": {
+          "displayName": "Jane Demo",
+          "erpId": "ERP-DEMO",
+          "id": 6347
+        },
+        "customerPo": {
+          "number": "PO-3740",
+          "versionNotes": ""
+        },
+        "id": 9,
+        "internal": false,
+        "notes": "Demo note 1",
+        "number": "CO-4",
+        "reason": ""
+      },
+      "lineItems": [
+        {
+          "bomLineId": 2378699,
+          "breakoutLineId": 14,
+          "changedFields": [
+            "extendedCostAmount",
+            "extendedDiscountedCostAmount",
+            "extendedSellPriceAmount"
+          ],
+          "description": "",
+          "extendedCostAmount": "667.00",
+          "extendedDiscountedCostAmount": "653.66",
+          "extendedSellPriceAmount": "848.91",
+          "fulfillmentMethod": "direct",
+          "lineAction": "UPDATE",
+          "lotId": null,
+          "manufacturerErpId": "INT-MFG-00009",
+          "manufacturerName": "DEMO MANUFACTURING",
+          "marginPercentage": 23,
+          "modelNumber": "DEMO-100",
+          "orderNotesExternal": "",
+          "pricingPer": 1,
+          "productErpId": "",
+          "purchaseOrderErpLineId": "PO-LINE-39CBBDF8",
+          "quantity": 29,
+          "salesOrderErpLineId": "SO-LINE-4FCACEDB",
+          "sellingUom": "EA",
+          "sellingUomConversionFactor": 1,
+          "sourceQuoteNumber": "",
+          "stockLocationErpId": null,
+          "type": "",
+          "unitCostAmount": "23.00",
+          "unitDiscountedCostAmount": "22.54",
+          "unitSellPriceAmount": "29.27"
+        }
+      ],
+      "opportunity": {
+        "id": 972,
+        "name": "Opportunity 1"
+      },
+      "pricingAggregates": {
+        "lots": []
+      },
+      "project": {
+        "erpId": "INT-PRJ-008",
+        "id": 193686,
+        "locationErpId": "5525",
+        "locationName": "",
+        "name": "Demo Office Building"
+      },
+      "purchaseOrder": {
+        "changedFields": [],
+        "erpId": "PO-ERP-B96E72E3",
+        "openingNotes": "",
+        "orderAction": "UPDATE",
+        "payTo": {
+          "address": {
+            "addressLine1": "100 Example St",
+            "addressLine2": "",
+            "attn": "Billing",
+            "city": "Springfield",
+            "countryCode": "US",
+            "name": "DEMO MANUFACTURING - Pay To",
+            "postalCode": "00100",
+            "stateOrProvinceCode": "AK"
+          },
+          "erpId": "INT-MFG-00009-PAYTO"
+        },
+        "priceBranchErpId": "5525",
+        "receiveBranchErpId": "5525",
+        "shipFrom": {
+          "address": {
+            "addressLine1": "100 Example St",
+            "addressLine2": "",
+            "attn": "",
+            "city": "Springfield",
+            "countryCode": "US",
+            "name": "DEMO MANUFACTURING - Ship From",
+            "postalCode": "00100",
+            "stateOrProvinceCode": "AK"
+          },
+          "erpId": "INT-MFG-00009-SHIPFROM"
+        },
+        "shipVia": {
+          "billingAccount": "",
+          "carrierName": "",
+          "code": "",
+          "description": "",
+          "method": ""
+        },
+        "version": 2
+      },
+      "salesOrder": {
+        "billTo": {
+          "address": {
+            "addressLine1": "200 Sample Ave",
+            "addressLine2": "",
+            "attn": "",
+            "city": "Riverton",
+            "countryCode": "US",
+            "name": "Demo Electrical Contractors - Bill To",
+            "postalCode": "00200",
+            "stateOrProvinceCode": "OR"
+          },
+          "erpId": "INT-CO-00006-BILL_TO"
+        },
+        "changedFields": [],
+        "customerPoNumber": "PO-3740",
+        "erpId": "SO-ERP-2234041E",
+        "orderAction": "UPDATE",
+        "priceBranchErpId": "5525",
+        "primaryCustomer": {
+          "companyName": "Demo Electrical Contractors",
+          "contactCrmId": null,
+          "contactName": "John Sample",
+          "crmId": "",
+          "duns": "787342565",
+          "erpId": "INT-CO-00006"
+        },
+        "requiredOnSiteAt": "",
+        "shipBranchErpId": "5525",
+        "shipTo": {
+          "address": {
+            "addressLine1": "200 Sample Ave",
+            "addressLine2": "",
+            "attn": "",
+            "city": "Riverton",
+            "countryCode": "US",
+            "name": "Demo Electrical Contractors - Ship To",
+            "postalCode": "00200",
+            "stateOrProvinceCode": "OR"
+          },
+          "erpId": "INT-CO-00006-SHIP_TO"
+        },
+        "version": 2
+      }
+    }
+  },
+  "callback": {
+    "orderId": "PO-ERP-B96E72E3",
+    "data": {
+      "salesOrder": {
+        "erpId": "SO-ERP-2234041E",
+        "result": "UPDATED"
+      },
+      "purchaseOrder": {
+        "erpId": "PO-ERP-B96E72E3",
+        "result": "UPDATED"
+      },
+      "lineItems": [
+        {
+          "bomLineId": 2378699,
+          "breakoutLineId": 14,
+          "salesOrderErpLineId": "SO-LINE-4FCACEDB",
+          "purchaseOrderErpLineId": "PO-LINE-39CBBDF8",
+          "result": "UPDATED"
+        }
+      ],
+      "pricingAggregates": {
+        "lots": []
+      }
+    }
+  }
+}
