@@ -1,0 +1,10 @@
+{
+  "name": "@parspec/events",
+  "version": "0.1.0",
+  "description": "Subscribe to Parspec PM events, verify webhook signatures, and send callbacks.",
+  "main": "index.js",
+  "files": ["index.js"],
+  "engines": { "node": ">=18" },
+  "scripts": { "test": "node --test test.js" },
+  "license": "UNLICENSED"
+}
