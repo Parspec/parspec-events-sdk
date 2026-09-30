@@ -1,0 +1,193 @@
+{
+  "eventType": "deliveryTicket.updateToErp",
+  "version": 1,
+  "delivery": {
+    "eventTransactionID": "7368bbd5-2a2a-4a83-85c4-8fe5fffd777e",
+    "callback_url": "integrations/events/callback",
+    "data": {
+      "bom": {
+        "id": 669015,
+        "name": "BOM 1 - Demo Office Building"
+      },
+      "breakoutId": 4,
+      "callbackUrl": "integrations/events/callback",
+      "customerPoNumber": "PO-3876",
+      "deliveryTicket": {
+        "billTo": {
+          "address": {
+            "addressLine1": "100 Example St",
+            "addressLine2": "",
+            "attn": "Jane Demo",
+            "city": "Springfield",
+            "countryCode": "US",
+            "name": "Demo Electrical Contractors - Bill To",
+            "postalCode": "00100",
+            "stateOrProvinceCode": "OR"
+          },
+          "erpId": "INT-CO-00009-BILL_TO"
+        },
+        "lineItems": [
+          {
+            "billAndHoldBranchErpId": "8933",
+            "bomLineId": 7844691,
+            "deliveryQuantity": 6,
+            "description": "",
+            "fulfillmentInternalComments": "",
+            "fulfillmentLineId": 18,
+            "fulfillmentNotesExternal": "",
+            "fulfillmentStatus": "At Branch",
+            "manufacturerErpId": "INT-MFG-00006",
+            "manufacturerName": "DEMO MANUFACTURING",
+            "modelNumber": "DEMO-100",
+            "productErpId": "",
+            "purchaseOrderErpId": "PO-ERP-72768D8B",
+            "purchaseOrderErpLineId": "",
+            "purchaseOrderId": 7,
+            "salesOrderErpId": "SO-ERP-CAC13B57",
+            "salesOrderErpLineId": "",
+            "salesOrderId": 3,
+            "sellingUom": "EA",
+            "stockLocationErpId": "",
+            "targetOnSiteAt": "",
+            "type": "",
+            "id": 645,
+            "lineAction": "UPDATE",
+            "changedFields": [
+              "deliveryQuantity"
+            ],
+            "deliveryTicketErpLineId": "1"
+          },
+          {
+            "billAndHoldBranchErpId": "8933",
+            "bomLineId": 2376852,
+            "deliveryQuantity": 1,
+            "description": "",
+            "fulfillmentInternalComments": "",
+            "fulfillmentLineId": 769,
+            "fulfillmentNotesExternal": "",
+            "fulfillmentStatus": "At Branch",
+            "manufacturerErpId": "INT-MFG-00001",
+            "manufacturerName": "SAMPLE LIGHTING CO",
+            "modelNumber": "DEMO-200",
+            "productErpId": "",
+            "purchaseOrderErpId": "PO-ERP-AEC9B764",
+            "purchaseOrderErpLineId": "PO-LINE-5976D3AA",
+            "purchaseOrderId": 35,
+            "salesOrderErpId": "SO-ERP-85474344",
+            "salesOrderErpLineId": "SO-LINE-B450E1E1",
+            "salesOrderId": 7,
+            "sellingUom": "EA",
+            "stockLocationErpId": "",
+            "targetOnSiteAt": "",
+            "type": "",
+            "id": 342,
+            "lineAction": "CANCEL",
+            "changedFields": [],
+            "deliveryTicketErpLineId": "2"
+          }
+        ],
+        "priceBranchErpId": "8933",
+        "primaryCustomer": {
+          "companyName": "Demo Electrical Contractors",
+          "contactCrmId": null,
+          "contactName": "Jane Demo",
+          "crmId": "",
+          "duns": "156232547",
+          "erpId": "INT-CO-00009"
+        },
+        "shipBranchErpId": "8933",
+        "shipTo": {
+          "address": {
+            "addressLine1": "100 Example St",
+            "addressLine2": "",
+            "attn": "Jane Demo",
+            "city": "Springfield",
+            "countryCode": "US",
+            "name": "Demo Electrical Contractors - Ship To",
+            "postalCode": "00100",
+            "stateOrProvinceCode": "OR"
+          },
+          "erpId": "INT-CO-00009-SHIP_TO"
+        },
+        "shippingInstructions": "",
+        "deliveryTicketErpId": "DT-ERP-6246403F"
+      },
+      "eventTransactionId": "4cef4530-ccca-42ad-bf3a-74e01436b310",
+      "opportunity": {
+        "id": 791,
+        "name": "Opportunity 1",
+        "scopes": []
+      },
+      "project": {
+        "erpId": "INT-PRJ-004",
+        "id": 861281,
+        "locationErpId": "8933",
+        "locationName": "Demo Branch",
+        "name": "Demo Office Building"
+      }
+    }
+  },
+  "callback": {
+    "orderId": "DT-ERP-6246403F",
+    "data": {
+      "ticketAction": "UPDATE",
+      "deliveryTicketErpId": "DT-ERP-6246403F",
+      "lineItems": [
+        {
+          "lineAction": "UPDATED",
+          "billAndHoldBranchErpId": "8933",
+          "bomLineId": 7844691,
+          "deliveryQuantity": 6,
+          "description": "",
+          "fulfillmentInternalComments": "",
+          "fulfillmentLineId": 18,
+          "fulfillmentNotesExternal": "",
+          "fulfillmentStatus": "At Branch",
+          "manufacturerErpId": "INT-MFG-00006",
+          "manufacturerName": "DEMO MANUFACTURING",
+          "modelNumber": "DEMO-100",
+          "productErpId": "",
+          "purchaseOrderErpId": "PO-ERP-72768D8B",
+          "purchaseOrderErpLineId": "",
+          "purchaseOrderId": 7,
+          "salesOrderErpId": "SO-ERP-CAC13B57",
+          "salesOrderErpLineId": "",
+          "salesOrderId": 3,
+          "sellingUom": "EA",
+          "stockLocationErpId": "",
+          "targetOnSiteAt": "",
+          "type": "",
+          "id": 645,
+          "deliveryTicketErpLineId": "1"
+        },
+        {
+          "lineAction": "CANCELLED",
+          "billAndHoldBranchErpId": "8933",
+          "bomLineId": 2376852,
+          "deliveryQuantity": 1,
+          "description": "",
+          "fulfillmentInternalComments": "",
+          "fulfillmentLineId": 769,
+          "fulfillmentNotesExternal": "",
+          "fulfillmentStatus": "At Branch",
+          "manufacturerErpId": "INT-MFG-00001",
+          "manufacturerName": "SAMPLE LIGHTING CO",
+          "modelNumber": "DEMO-200",
+          "productErpId": "",
+          "purchaseOrderErpId": "PO-ERP-AEC9B764",
+          "purchaseOrderErpLineId": "PO-LINE-5976D3AA",
+          "purchaseOrderId": 35,
+          "salesOrderErpId": "SO-ERP-85474344",
+          "salesOrderErpLineId": "SO-LINE-B450E1E1",
+          "salesOrderId": 7,
+          "sellingUom": "EA",
+          "stockLocationErpId": "",
+          "targetOnSiteAt": "",
+          "type": "",
+          "id": 342,
+          "deliveryTicketErpLineId": "2"
+        }
+      ]
+    }
+  }
+}
