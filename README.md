@@ -29,9 +29,18 @@ scripts/build-branches.sh
 
 It adds one commit to each branch whose content changed, and skips the rest.
 
+## Harness
+
+`harness/` runs all four SDKs through the same checks: unit tests, recorded deliveries, and a live org end to end (or a local fake PM). See [harness/README.md](harness/README.md).
+
+```
+node harness/run.js fixtures
+node harness/run.js live --fake
+```
+
 ## Tests
 
-From the repo root:
+Each language on its own, from the repo root:
 
 ```
 (cd node && node --test test.js)

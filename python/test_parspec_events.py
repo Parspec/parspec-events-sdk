@@ -32,7 +32,11 @@ class Signatures(unittest.TestCase):
                 key = (FX / "keys" / c["key"]).read_text()
                 raw = c["body"].encode("utf-8")
                 self.assertEqual(verify(raw, c["signature"], key), c["valid"])
-                headers = {"X-Signature": c["signature"], "Idempotency-Key": "idem-1"}
+                # Frameworks differ on header-name case; both must work.
+                if c["name"] == "valid":
+                    headers = {"x-signature": c["signature"], "idempotency-key": "idem-1"}
+                else:
+                    headers = {"X-Signature": c["signature"], "Idempotency-Key": "idem-1"}
                 if c["valid"]:
                     parsed = parse_event(raw, headers, key)
                     self.assertEqual(parsed["transaction_id"], parsed["event"]["eventTransactionID"])
@@ -46,12 +50,21 @@ class Callbacks(unittest.TestCase):
     def test_cases(self):
         for c in load("callbacks.json"):
             with self.subTest(c["name"]):
-                send, calls = fake_send()
+                send, calls = fake_send([c["response"]] if "response" in c else [])
                 client = Client("k", base_url=BASE, send=send)
-                if c["call"] == "error":
-                    client.fail(c["event"], c["message"])
+
+                def run():
+                    if c["call"] == "error":
+                        client.fail(c["event"], c["message"])
+                    else:
+                        client.callback(c["event"], c["fields"])
+
+                if "error" in c["expect"]:
+                    with self.assertRaises(ParspecApiError) as ctx:
+                        run()
+                    self.assertEqual(ctx.exception.status, c["expect"]["error"])
                 else:
-                    client.callback(c["event"], c["fields"])
+                    run()
                 self.assertEqual(len(calls), 1)
                 self.assertEqual(calls[0]["method"], c["expect"]["method"])
                 self.assertEqual(calls[0]["url"], c["expect"]["url"])

@@ -13,7 +13,8 @@ for (const c of load('signatures.json')) {
   test(`signature: ${c.name}`, () => {
     const key = fs.readFileSync(fx(`keys/${c.key}`), 'utf8');
     assert.strictEqual(verify(Buffer.from(c.body, 'utf8'), c.signature, key), c.valid);
-    const headers = { 'X-Signature': c.signature, 'Idempotency-Key': 'idem-1' };
+    // Node lowercases incoming header names; other frameworks don't. Both must work.
+    const headers = c.name === 'valid' ? { 'x-signature': c.signature, 'idempotency-key': 'idem-1' } : { 'X-Signature': c.signature, 'Idempotency-Key': 'idem-1' };
     if (c.valid) {
       const { event, transactionId, idempotencyKey } = parseEvent(c.body, headers, key);
       assert.strictEqual(transactionId, event.eventTransactionID);
@@ -37,10 +38,11 @@ function fakeFetch(responses = []) {
 
 for (const c of load('callbacks.json')) {
   test(`callback: ${c.name}`, async () => {
-    const { fetch, calls } = fakeFetch();
+    const { fetch, calls } = fakeFetch(c.response ? [c.response] : []);
     const client = createClient({ apiKey: 'k', baseUrl: BASE, fetch });
-    if (c.call === 'error') await client.fail(c.event, c.message);
-    else await client.callback(c.event, c.fields);
+    const run = c.call === 'error' ? client.fail(c.event, c.message) : client.callback(c.event, c.fields);
+    if (c.expect.error) await assert.rejects(run, e => e.status === c.expect.error);
+    else await run;
     assert.strictEqual(calls.length, 1);
     assert.strictEqual(calls[0].method, c.expect.method);
     assert.strictEqual(calls[0].url, c.expect.url);
