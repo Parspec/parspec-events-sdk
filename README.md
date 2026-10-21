@@ -9,7 +9,7 @@ Small libraries for receiving Parspec PM webhook events in your own service: sub
 | C# / .NET 8+ | `csharp` | `csharp/` | none |
 | Java 17+ | `java` | `java/` | none |
 
-How the events work (subscribe, verify, deduplicate, callback): [PROTOCOL.md](PROTOCOL.md). Usage for each language is in its folder's README.
+How the events work (subscribe, verify, deduplicate, callback): [PROTOCOL.md](PROTOCOL.md). The same flow as diagrams, including how signing keys are validated: [FLOW.md](FLOW.md). Usage for each language is in its folder's README.
 
 Each SDK has two layers: the building blocks (`subscribe`, `verify`, `parseEvent`, `callback`) and a **receiver** that puts them together. You register one function per event type; the receiver verifies each delivery, routes it, skips duplicates and sends the callback. You decide where keys and seen transactions are stored: env vars, a keychain, a database or Redis. See [PROTOCOL.md](PROTOCOL.md#the-receiver-and-where-to-store-things).
 
