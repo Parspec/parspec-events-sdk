@@ -104,11 +104,11 @@ Each file in `fixtures/samples/` has a `callback` key: the fields a working inte
 
 | Event | `billAndHoldModelNumber` | `billAndHoldProductErpId` |
 |---|---|---|
-| `receivingTicket.publishToErp` | Sent. | Not sent. Return the ERP item id in the callback. |
-| `deliveryTicket.publishToErp` | Sent. | Sent once a receiving reply gave one, else null. Return it in the callback when null. |
+| `receivingTicket.publishToErp` | Sent. | Not sent. Return the ERP item id in the callback for each B&H line. |
+| `deliveryTicket.publishToErp` | Sent. | Sent once a receiving reply gave one, else null. Return it in the callback for a B&H line that has none. |
 | `receivingTicket.updateToErp`, `deliveryTicket.updateToErp` | Sent. | Sent, or null. |
 
-In a `publishToErp` callback, echo each line's `billAndHoldModelNumber` and add `billAndHoldProductErpId`. PM matches them on `bomLineId` plus the number, since split lines share a `bomLineId`. Once the ticket is created, PM locks each B&H line to the number it sent, whatever the callback repeats. A delivery line keeps an ERP item id PM already has. PM reads neither field from an `updateToErp` callback.
+In a `publishToErp` callback, echo each B&H line's `billAndHoldModelNumber` and add `billAndHoldProductErpId`. A line whose `billAndHoldModelNumber` is null is not a B&H line: return `billAndHoldProductErpId` as null or leave it out, and PM ignores both fields on it. PM matches them on `bomLineId` plus the number, since split lines share a `bomLineId`. Once the ticket is created, PM locks each B&H line to the number it sent, whatever the callback repeats. A delivery line keeps an ERP item id PM already has. PM reads neither field from an `updateToErp` callback.
 
 **`inventory.fetchPrice` (v2).** Return one entry per item you have a price for, echoing the delivered item and adding:
 - `unitCost`, `unitSellPrice` and optionally `unitDiscountedCost`, each `{ "amount": "12.3400" }`: a decimal string in dollars, at most 4 decimal places. PM rejects more.
