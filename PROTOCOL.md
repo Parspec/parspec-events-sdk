@@ -100,7 +100,7 @@ Each file in `fixtures/samples/` has a `callback` key: the fields a working inte
 | `tandemBilling.submitToErp` | `data`: `vendorInvoiceErpId`, `approved`. | |
 | `purchaseOrder.publishToErp`, `salesOrder.publishToErp` | `orderId`, `data`: `purchaseOrderErpId` (or `salesOrderErpId`), `lineItems[]` with the ERP line id. Not yet confirmed in sandbox. | |
 
-**B&H Part Numbers on receiving and delivery tickets.** Bill-and-hold lines carry `billAndHoldModelNumber`, the line's B&H Part Number, and `billAndHoldProductErpId`, the ERP item id for it; `modelNumber` stays the catalog number. Both fields are null on lines without one: the feature off, Direct or stock lines, and tickets created before it was on.
+**B&H Part Numbers on receiving and delivery tickets.** Bill-and-hold lines carry `billAndHoldModelNumber`, the line's B&H Part Number, and `billAndHoldProductErpId`, the ERP item id for it; `modelNumber` stays the catalog number. On lines without one (the feature off, Direct or stock lines, and tickets created before it was on), each field that the event sends is null. `receivingTicket.publishToErp` never sends `billAndHoldProductErpId`, so that field is absent there on every line, B&H or not.
 
 | Event | `billAndHoldModelNumber` | `billAndHoldProductErpId` |
 |---|---|---|
