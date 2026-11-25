@@ -38,6 +38,8 @@
         "lineItems": [
           {
             "billAndHoldBranchErpId": "6374",
+            "billAndHoldModelNumber": "ACM118030A1",
+            "billAndHoldProductErpId": "ITEM-1001",
             "bomLineId": 2332564,
             "description": "",
             "fulfillmentInternalComments": "",
@@ -107,6 +109,8 @@
           "receivingTicketErpLineId": "1",
           "receivingTicketLineId": 933,
           "billAndHoldBranchErpId": "6374",
+          "billAndHoldModelNumber": "ACM118030A1",
+          "billAndHoldProductErpId": "ITEM-1001",
           "bomLineId": 2332564,
           "description": "",
           "fulfillmentInternalComments": "",
