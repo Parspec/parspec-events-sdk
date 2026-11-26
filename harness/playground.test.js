@@ -92,6 +92,33 @@ test('every sample in fixtures/samples loads, and every one can be delivered and
   assert.deepStrictEqual([...answered].sort(), mocks.map(m => m.eventType).sort());
 });
 
+test('B&H samples follow the PROTOCOL.md rules for B&H Part Numbers and ERP item ids', () => {
+  const sample = name => JSON.parse(fs.readFileSync(path.join(SAMPLES, `${name}.json`), 'utf8'));
+  const lines = (s, ticket) => s.delivery.data[ticket].lineItems;
+  const rtPublish = sample('receivingTicket.publishToErp');
+  const dtPublish = sample('deliveryTicket.publishToErp');
+  // A receiving publish never sends the ERP item id; a delivery publish sends null until a receiving reply gave one.
+  for (const line of lines(rtPublish, 'receivingTicket')) assert.ok(!('billAndHoldProductErpId' in line), 'receiving publish omits the ERP item id');
+  assert.ok(lines(dtPublish, 'deliveryTicket').some(line => line.billAndHoldProductErpId === null), 'a delivery line not yet given an ERP item id sends null');
+  // A publish callback echoes each B&H line's number and returns an ERP item id, keeping one PM already has.
+  for (const [s, ticket] of [[rtPublish, 'receivingTicket'], [dtPublish, 'deliveryTicket']]) {
+    // PM matches a callback line on bomLineId plus the number, as PROTOCOL.md says.
+    const key = line => `${line.bomLineId}|${line.billAndHoldModelNumber}`;
+    const answered = new Map(s.callback.data.lineItems.map(line => [key(line), line.billAndHoldProductErpId]));
+    for (const line of lines(s, ticket).filter(l => l.billAndHoldModelNumber)) {
+      assert.ok(answered.has(key(line)), `${ticket} callback echoes ${line.billAndHoldModelNumber} on its BOM line`);
+      assert.ok(answered.get(key(line)), `${ticket} callback returns an ERP item id for ${line.billAndHoldModelNumber}`);
+      if (line.billAndHoldProductErpId) assert.strictEqual(answered.get(key(line)), line.billAndHoldProductErpId);
+    }
+  }
+  // Updates send both fields on every line, each a value or null.
+  for (const [name, ticket] of [['receivingTicket.updateToErp', 'receivingTicket'], ['deliveryTicket.updateToErp', 'deliveryTicket']]) {
+    for (const line of lines(sample(name), ticket)) {
+      assert.ok('billAndHoldModelNumber' in line && 'billAndHoldProductErpId' in line, `${name} sends both B&H fields`);
+    }
+  }
+});
+
 test('mocks: dropped-in files in every accepted format, re-read without a restart', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pg-mocks-'));
   const envelope = { eventTransactionID: 'x', callback_url: 'integrations/events/callback', data: { a: 1 } };
