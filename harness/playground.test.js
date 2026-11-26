@@ -102,11 +102,13 @@ test('B&H samples follow the PROTOCOL.md rules for B&H Part Numbers and ERP item
   assert.ok(lines(dtPublish, 'deliveryTicket').some(line => line.billAndHoldProductErpId === null), 'a delivery line not yet given an ERP item id sends null');
   // A publish callback echoes each B&H line's number and returns an ERP item id, keeping one PM already has.
   for (const [s, ticket] of [[rtPublish, 'receivingTicket'], [dtPublish, 'deliveryTicket']]) {
-    const answered = new Map(s.callback.data.lineItems.map(line => [line.billAndHoldModelNumber, line.billAndHoldProductErpId]));
+    // PM matches a callback line on bomLineId plus the number, as PROTOCOL.md says.
+    const key = line => `${line.bomLineId}|${line.billAndHoldModelNumber}`;
+    const answered = new Map(s.callback.data.lineItems.map(line => [key(line), line.billAndHoldProductErpId]));
     for (const line of lines(s, ticket).filter(l => l.billAndHoldModelNumber)) {
-      assert.ok(answered.has(line.billAndHoldModelNumber), `${ticket} callback echoes ${line.billAndHoldModelNumber}`);
-      assert.ok(answered.get(line.billAndHoldModelNumber), `${ticket} callback returns an ERP item id for ${line.billAndHoldModelNumber}`);
-      if (line.billAndHoldProductErpId) assert.strictEqual(answered.get(line.billAndHoldModelNumber), line.billAndHoldProductErpId);
+      assert.ok(answered.has(key(line)), `${ticket} callback echoes ${line.billAndHoldModelNumber} on its BOM line`);
+      assert.ok(answered.get(key(line)), `${ticket} callback returns an ERP item id for ${line.billAndHoldModelNumber}`);
+      if (line.billAndHoldProductErpId) assert.strictEqual(answered.get(key(line)), line.billAndHoldProductErpId);
     }
   }
   // Updates send both fields on every line, each a value or null.
