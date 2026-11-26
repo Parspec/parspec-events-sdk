@@ -29,6 +29,8 @@
         "lineItems": [
           {
             "billAndHoldBranchErpId": "8933",
+            "billAndHoldModelNumber": "ACM118030A1",
+            "billAndHoldProductErpId": "ITEM-1001",
             "bomLineId": 7844691,
             "deliveryQuantity": 6,
             "description": "",
@@ -59,6 +61,8 @@
           },
           {
             "billAndHoldBranchErpId": "8933",
+            "billAndHoldModelNumber": "ACM118030A2",
+            "billAndHoldProductErpId": "ITEM-1002",
             "bomLineId": 2376852,
             "deliveryQuantity": 1,
             "description": "",
@@ -136,6 +140,8 @@
         {
           "lineAction": "UPDATED",
           "billAndHoldBranchErpId": "8933",
+          "billAndHoldModelNumber": "ACM118030A1",
+          "billAndHoldProductErpId": "ITEM-1001",
           "bomLineId": 7844691,
           "deliveryQuantity": 6,
           "description": "",
@@ -163,6 +169,8 @@
         {
           "lineAction": "CANCELLED",
           "billAndHoldBranchErpId": "8933",
+          "billAndHoldModelNumber": "ACM118030A2",
+          "billAndHoldProductErpId": "ITEM-1002",
           "bomLineId": 2376852,
           "deliveryQuantity": 1,
           "description": "",

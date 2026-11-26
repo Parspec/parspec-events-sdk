@@ -100,6 +100,16 @@ Each file in `fixtures/samples/` has a `callback` key: the fields a working inte
 | `tandemBilling.submitToErp` | `data`: `vendorInvoiceErpId`, `approved`. | |
 | `purchaseOrder.publishToErp`, `salesOrder.publishToErp` | `orderId`, `data`: `purchaseOrderErpId` (or `salesOrderErpId`), `lineItems[]` with the ERP line id. Not yet confirmed in sandbox. | |
 
+**B&H Part Numbers on receiving and delivery tickets.** Bill-and-hold lines carry `billAndHoldModelNumber`, the line's B&H Part Number, and `billAndHoldProductErpId`, the ERP item id for it; `modelNumber` stays the catalog number. On lines without one (the feature off, Direct or stock lines, and tickets created before it was on), each field that the event sends is null. `receivingTicket.publishToErp` never sends `billAndHoldProductErpId`, so that field is absent there on every line, B&H or not.
+
+| Event | `billAndHoldModelNumber` | `billAndHoldProductErpId` |
+|---|---|---|
+| `receivingTicket.publishToErp` | Sent. | Not sent. Return the ERP item id in the callback for each B&H line. |
+| `deliveryTicket.publishToErp` | Sent. | Sent once a receiving reply gave one, else null. Return it in the callback for a B&H line that has none. |
+| `receivingTicket.updateToErp`, `deliveryTicket.updateToErp` | Sent. | Sent, or null. |
+
+In a `publishToErp` callback, echo each B&H line's `billAndHoldModelNumber` and add `billAndHoldProductErpId`. A line whose `billAndHoldModelNumber` is null is not a B&H line: return `billAndHoldProductErpId` as null or leave it out, and PM ignores both fields on it. PM matches them on `bomLineId` plus the number, since split lines share a `bomLineId`. Once the ticket is created, PM locks each B&H line to the number it sent, whatever the callback repeats. A delivery line keeps an ERP item id PM already has. PM reads neither field from an `updateToErp` callback.
+
 **`inventory.fetchPrice` (v2).** Return one entry per item you have a price for, echoing the delivered item and adding:
 - `unitCost`, `unitSellPrice` and optionally `unitDiscountedCost`, each `{ "amount": "12.3400" }`: a decimal string in dollars, at most 4 decimal places. PM rejects more.
 - `sellingUom`, `sellingUomConversionFactor` and `pricingPer` for the unit the returned price is in. PM writes them back to the line and computes `quantity × sellingUomConversionFactor × unitCost.amount / pricingPer`.
